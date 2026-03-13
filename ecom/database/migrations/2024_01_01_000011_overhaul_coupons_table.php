@@ -1,0 +1,56 @@
+<?php
+
+use Illuminate\Database\Migrations\Migration;
+use Illuminate\Database\Schema\Blueprint;
+use Illuminate\Support\Facades\Schema;
+
+return new class extends Migration
+{
+    public function up(): void
+    {
+        Schema::table('coupons', function (Blueprint $table) {
+            // Drop old columns that were simplified
+            if (Schema::hasColumn('coupons', 'type')) {
+                $table->dropColumn('type');
+            }
+            if (Schema::hasColumn('coupons', 'value')) {
+                $table->dropColumn('value');
+            }
+        });
+
+        Schema::table('coupons', function (Blueprint $table) {
+            // Stripe coupon fields matching Stripe's API
+            $table->string('discount_type')->default('percent_off')->after('code'); // percent_off or amount_off
+            $table->decimal('discount_value', 10, 2)->default(0)->after('discount_type'); // percentage (0-100) or amount in dollars
+            $table->string('duration')->default('once')->after('discount_value'); // once, repeating, forever
+            $table->unsignedInteger('duration_in_months')->nullable()->after('duration'); // only when duration=repeating
+            $table->unsignedInteger('max_redemptions')->nullable()->after('duration_in_months');
+            $table->unsignedInteger('times_redeemed')->default(0)->after('max_redemptions');
+            $table->boolean('is_active')->default(true)->after('times_redeemed');
+            $table->timestamp('expires_at')->nullable()->after('is_active');
+            $table->string('stripe_promotion_code_id')->nullable()->after('stripe_coupon_id');
+        });
+    }
+
+    public function down(): void
+    {
+        Schema::table('coupons', function (Blueprint $table) {
+            $table->dropColumn([
+                'discount_type',
+                'discount_value',
+                'duration',
+                'duration_in_months',
+                'max_redemptions',
+                'times_redeemed',
+                'is_active',
+                'expires_at',
+                'stripe_promotion_code_id',
+            ]);
+        });
+
+        Schema::table('coupons', function (Blueprint $table) {
+            $table->string('type')->default('percentage')->after('code');
+            $table->decimal('value', 10, 2)->default(0)->after('type');
+        });
+    }
+};
