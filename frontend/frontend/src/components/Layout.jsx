@@ -8,19 +8,19 @@ export default function Layout() {
     const [sidebarOpen, setSidebarOpen] = useState(false);
 
     const allLinks = [
-        { to: '/admin', label: 'Dashboard', permission: null },
-        { to: '/admin/categories', label: 'Categories', permission: 'manage-categories' },
-        { to: '/admin/sub-categories', label: 'Sub Categories', permission: 'manage-sub-categories' },
-        { to: '/admin/products', label: 'Products', permission: 'view-products' },
-        { to: '/admin/orders', label: 'Orders', permission: 'view-orders' },
-        { to: '/admin/coupons', label: 'Coupons', permission: 'manage-coupons' },
-        { to: '/admin/roles', label: 'Roles', permission: 'manage-roles' },
-        { to: '/admin/permissions', label: 'Permissions', permission: 'manage-permissions' },
-        { to: '/admin/users', label: 'Users', permission: 'manage-users' },
+        { to: '/admin', label: 'Dashboard', permissions: null },
+        { to: '/admin/categories', label: 'Categories', permissions: ['view-categories', 'manage-categories'] },
+        { to: '/admin/sub-categories', label: 'Sub Categories', permissions: ['view-sub-categories', 'manage-sub-categories'] },
+        { to: '/admin/products', label: 'Products', permissions: ['view-products'] },
+        { to: '/admin/orders', label: 'Orders', permissions: ['view-orders'] },
+        { to: '/admin/coupons', label: 'Coupons', permissions: ['manage-coupons'] },
+        { to: '/admin/roles', label: 'Roles', permissions: ['manage-roles'] },
+        { to: '/admin/permissions', label: 'Permissions', permissions: ['manage-permissions'] },
+        { to: '/admin/users', label: 'Users', permissions: ['manage-users'] },
     ];
 
     const links = allLinks.filter(
-        (link) => link.permission === null || hasPermission(link.permission)
+        (link) => link.permissions === null || link.permissions.some(p => hasPermission(p))
     );
 
     const isActive = (path) => location.pathname === path;

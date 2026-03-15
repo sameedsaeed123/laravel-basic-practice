@@ -12,7 +12,9 @@ class RolesAndPermissionsSeeder extends Seeder
     public function run(): void
     {
         $permissions = [
+            'view-categories',
             'manage-categories',
+            'view-sub-categories',
             'manage-sub-categories',
             'view-products',
             'create-products',
@@ -31,12 +33,14 @@ class RolesAndPermissionsSeeder extends Seeder
         }
 
         $adminRole = Role::firstOrCreate(['name' => 'admin']);
-        $adminRole->permissions()->sync(Permission::all());
+        $adminRole->permissions()->sync(Permission::all()->pluck('id'));
 
         $managerRole = Role::firstOrCreate(['name' => 'manager']);
         $managerRole->permissions()->sync(
             Permission::whereIn('name', [
+                'view-categories',
                 'manage-categories',
+                'view-sub-categories',
                 'manage-sub-categories',
                 'view-products',
                 'create-products',
@@ -46,7 +50,15 @@ class RolesAndPermissionsSeeder extends Seeder
             ])->pluck('id')
         );
 
-        Role::firstOrCreate(['name' => 'viewer']);
+        $viewerRole = Role::firstOrCreate(['name' => 'viewer']);
+        $viewerRole->permissions()->sync(
+            Permission::whereIn('name', [
+                'view-categories',
+                'view-sub-categories',
+                'view-products',
+                'view-orders',
+            ])->pluck('id')
+        );
 
         $adminUsers = User::where('role', 'admin')->get();
         foreach ($adminUsers as $user) {

@@ -1,8 +1,15 @@
 import { useEffect, useState } from 'react';
+import { useAuth } from '../AuthContext';
 import api from '../api';
 import Toast from '../components/Toast';
 
 export default function Products() {
+    const { hasPermission } = useAuth();
+    const canCreate = hasPermission('create-products');
+    const canEdit = hasPermission('edit-products');
+    const canDelete = hasPermission('delete-products');
+    const showForm = canCreate || canEdit;
+
     const [products, setProducts] = useState([]);
     const [categories, setCategories] = useState([]);
     const [subCategories, setSubCategories] = useState([]);
@@ -16,15 +23,20 @@ export default function Products() {
 
     const fetchData = async () => {
         try {
-            const [prodRes, catsRes, subsRes] = await Promise.all([
-                api.get('/products'),
-                api.get('/categories'),
-                api.get('/sub-categories'),
-            ]);
+            const prodRes = await api.get('/products');
             setProducts(prodRes.data.data);
-            setCategories(catsRes.data.data);
-            setSubCategories(subsRes.data.data);
         } catch (e) {}
+
+        if (showForm) {
+            try {
+                const [catsRes, subsRes] = await Promise.all([
+                    api.get('/categories'),
+                    api.get('/sub-categories'),
+                ]);
+                setCategories(catsRes.data.data);
+                setSubCategories(subsRes.data.data);
+            } catch (e) {}
+        }
     };
 
     useEffect(() => { fetchData(); }, []);
@@ -86,6 +98,7 @@ export default function Products() {
     };
 
     const handleEdit = (product) => {
+        if (!canEdit) return;
         setForm({
             title: product.title,
             price: product.price,
@@ -99,6 +112,7 @@ export default function Products() {
     };
 
     const handleDelete = async (id) => {
+        if (!canDelete) return;
         if (!window.confirm('Delete this product?')) return;
         try {
             await api.delete(`/products/${id}`);
@@ -107,6 +121,7 @@ export default function Products() {
     };
 
     const handleDeleteImage = async (imageId) => {
+        if (!canDelete) return;
         if (!window.confirm('Delete this image?')) return;
         try {
             await api.delete(`/product-images/${imageId}`);
@@ -126,104 +141,106 @@ export default function Products() {
         <div>
             <h1 className="text-2xl font-bold text-gray-800 mb-6">Products</h1>
 
-            <div className="bg-white rounded-xl shadow-md p-6 mb-6">
-                <h2 className="text-lg font-semibold mb-4">{editId ? 'Edit Product' : 'Add Product'}</h2>
+            {showForm && (
+                <div className="bg-white rounded-xl shadow-md p-6 mb-6">
+                    <h2 className="text-lg font-semibold mb-4">{editId ? 'Edit Product' : 'Add Product'}</h2>
 
-                {error && (
-                    <Toast message={error} errors={errors} type="error" onClose={() => { setError(''); setErrors({}); }} />
-                )}
+                    {error && (
+                        <Toast message={error} errors={errors} type="error" onClose={() => { setError(''); setErrors({}); }} />
+                    )}
 
-                <form onSubmit={handleSubmit} className="space-y-3">
-                    <div className="flex flex-col sm:flex-row gap-3">
-                        <div className="flex-1">
-                            <input
-                                type="text"
-                                name="title"
-                                value={form.title}
-                                onChange={handleChange}
-                                placeholder="Product title"
-                                className={`w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent outline-none ${errors.title ? 'border-red-400' : 'border-gray-300'}`}
-                            />
-                            {errors.title && <p className="text-red-500 text-xs mt-1">{errors.title[0]}</p>}
+                    <form onSubmit={handleSubmit} className="space-y-3">
+                        <div className="flex flex-col sm:flex-row gap-3">
+                            <div className="flex-1">
+                                <input
+                                    type="text"
+                                    name="title"
+                                    value={form.title}
+                                    onChange={handleChange}
+                                    placeholder="Product title"
+                                    className={`w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent outline-none ${errors.title ? 'border-red-400' : 'border-gray-300'}`}
+                                />
+                                {errors.title && <p className="text-red-500 text-xs mt-1">{errors.title[0]}</p>}
+                            </div>
+                            <div className="w-full sm:w-32">
+                                <input
+                                    type="number"
+                                    name="price"
+                                    value={form.price}
+                                    onChange={handleChange}
+                                    placeholder="Price"
+                                    step="0.01"
+                                    min="0"
+                                    className={`w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent outline-none ${errors.price ? 'border-red-400' : 'border-gray-300'}`}
+                                />
+                                {errors.price && <p className="text-red-500 text-xs mt-1">{errors.price[0]}</p>}
+                            </div>
                         </div>
-                        <div className="w-full sm:w-32">
-                            <input
-                                type="number"
-                                name="price"
-                                value={form.price}
-                                onChange={handleChange}
-                                placeholder="Price"
-                                step="0.01"
-                                min="0"
-                                className={`w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent outline-none ${errors.price ? 'border-red-400' : 'border-gray-300'}`}
-                            />
-                            {errors.price && <p className="text-red-500 text-xs mt-1">{errors.price[0]}</p>}
-                        </div>
-                    </div>
-                    <div className="flex flex-col sm:flex-row gap-3">
-                        <div className="flex-1">
-                            <select
-                                name="category_id"
-                                value={form.category_id}
-                                onChange={handleChange}
-                                className={`w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent outline-none ${errors.category_id ? 'border-red-400' : 'border-gray-300'}`}
-                            >
-                                <option value="">Select Category</option>
-                                {categories.map((cat) => (
-                                    <option key={cat.id} value={cat.id}>{cat.name}</option>
-                                ))}
-                            </select>
-                            {errors.category_id && <p className="text-red-500 text-xs mt-1">{errors.category_id[0]}</p>}
-                        </div>
-                        <div className="flex-1">
-                            <select
-                                name="sub_category_id"
-                                value={form.sub_category_id}
-                                onChange={handleChange}
-                                className={`w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent outline-none ${errors.sub_category_id ? 'border-red-400' : 'border-gray-300'}`}
-                            >
-                                <option value="">Select Sub Category</option>
-                                {filteredSubs.map((sub) => (
-                                    <option key={sub.id} value={sub.id}>{sub.name}</option>
-                                ))}
-                            </select>
-                            {errors.sub_category_id && <p className="text-red-500 text-xs mt-1">{errors.sub_category_id[0]}</p>}
-                        </div>
-                    </div>
-                    <div className="flex flex-col sm:flex-row gap-3 items-start">
-                        <div className="flex-1">
-                            <input
-                                type="file"
-                                multiple
-                                accept="image/*"
-                                onChange={(e) => setImages([...e.target.files])}
-                                className={`w-full px-4 py-2 border rounded-lg text-sm file:mr-3 file:py-1 file:px-3 file:rounded-md file:border-0 file:bg-indigo-50 file:text-indigo-600 file:font-medium file:cursor-pointer ${errors['images.0'] || errors['images.1'] || errors['images.2'] ? 'border-red-400' : 'border-gray-300'}`}
-                            />
-                            {(errors['images.0'] || errors['images.1'] || errors['images.2']) && (
-                                <p className="text-red-500 text-xs mt-1">{(errors['images.0'] || errors['images.1'] || errors['images.2'])[0]}</p>
-                            )}
-                        </div>
-                        <div className="flex gap-2">
-                            <button
-                                type="submit"
-                                disabled={loading}
-                                className="bg-indigo-600 hover:bg-indigo-700 text-white px-6 py-2 rounded-lg font-medium transition disabled:opacity-50"
-                            >
-                                {loading ? 'Saving...' : editId ? 'Update' : 'Add'}
-                            </button>
-                            {editId && (
-                                <button
-                                    type="button"
-                                    onClick={cancelEdit}
-                                    className="bg-gray-200 hover:bg-gray-300 text-gray-700 px-6 py-2 rounded-lg font-medium transition"
+                        <div className="flex flex-col sm:flex-row gap-3">
+                            <div className="flex-1">
+                                <select
+                                    name="category_id"
+                                    value={form.category_id}
+                                    onChange={handleChange}
+                                    className={`w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent outline-none ${errors.category_id ? 'border-red-400' : 'border-gray-300'}`}
                                 >
-                                    Cancel
-                                </button>
-                            )}
+                                    <option value="">Select Category</option>
+                                    {categories.map((cat) => (
+                                        <option key={cat.id} value={cat.id}>{cat.name}</option>
+                                    ))}
+                                </select>
+                                {errors.category_id && <p className="text-red-500 text-xs mt-1">{errors.category_id[0]}</p>}
+                            </div>
+                            <div className="flex-1">
+                                <select
+                                    name="sub_category_id"
+                                    value={form.sub_category_id}
+                                    onChange={handleChange}
+                                    className={`w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent outline-none ${errors.sub_category_id ? 'border-red-400' : 'border-gray-300'}`}
+                                >
+                                    <option value="">Select Sub Category</option>
+                                    {filteredSubs.map((sub) => (
+                                        <option key={sub.id} value={sub.id}>{sub.name}</option>
+                                    ))}
+                                </select>
+                                {errors.sub_category_id && <p className="text-red-500 text-xs mt-1">{errors.sub_category_id[0]}</p>}
+                            </div>
                         </div>
-                    </div>
-                </form>
-            </div>
+                        <div className="flex flex-col sm:flex-row gap-3 items-start">
+                            <div className="flex-1">
+                                <input
+                                    type="file"
+                                    multiple
+                                    accept="image/*"
+                                    onChange={(e) => setImages([...e.target.files])}
+                                    className={`w-full px-4 py-2 border rounded-lg text-sm file:mr-3 file:py-1 file:px-3 file:rounded-md file:border-0 file:bg-indigo-50 file:text-indigo-600 file:font-medium file:cursor-pointer ${errors['images.0'] || errors['images.1'] || errors['images.2'] ? 'border-red-400' : 'border-gray-300'}`}
+                                />
+                                {(errors['images.0'] || errors['images.1'] || errors['images.2']) && (
+                                    <p className="text-red-500 text-xs mt-1">{(errors['images.0'] || errors['images.1'] || errors['images.2'])[0]}</p>
+                                )}
+                            </div>
+                            <div className="flex gap-2">
+                                <button
+                                    type="submit"
+                                    disabled={loading}
+                                    className="bg-indigo-600 hover:bg-indigo-700 text-white px-6 py-2 rounded-lg font-medium transition disabled:opacity-50"
+                                >
+                                    {loading ? 'Saving...' : editId ? 'Update' : 'Add'}
+                                </button>
+                                {editId && (
+                                    <button
+                                        type="button"
+                                        onClick={cancelEdit}
+                                        className="bg-gray-200 hover:bg-gray-300 text-gray-700 px-6 py-2 rounded-lg font-medium transition"
+                                    >
+                                        Cancel
+                                    </button>
+                                )}
+                            </div>
+                        </div>
+                    </form>
+                </div>
+            )}
 
             <div className="bg-white rounded-xl shadow-md overflow-hidden">
                 <div className="overflow-x-auto">
@@ -236,12 +253,14 @@ export default function Products() {
                                 <th className="text-left px-6 py-3 text-sm font-semibold text-gray-600">Category</th>
                                 <th className="text-left px-6 py-3 text-sm font-semibold text-gray-600">Sub Category</th>
                                 <th className="text-left px-6 py-3 text-sm font-semibold text-gray-600">Images</th>
-                                <th className="text-right px-6 py-3 text-sm font-semibold text-gray-600">Actions</th>
+                                {(canEdit || canDelete) && (
+                                    <th className="text-right px-6 py-3 text-sm font-semibold text-gray-600">Actions</th>
+                                )}
                             </tr>
                         </thead>
                         <tbody className="divide-y divide-gray-200">
                             {products.length === 0 && (
-                                <tr><td colSpan={7} className="px-6 py-8 text-center text-gray-400">No products found</td></tr>
+                                <tr><td colSpan={canEdit || canDelete ? 7 : 6} className="px-6 py-8 text-center text-gray-400">No products found</td></tr>
                             )}
                             {products.map((product) => (
                                 <tr key={product.id} className="hover:bg-gray-50">
@@ -259,30 +278,38 @@ export default function Products() {
                                                         alt=""
                                                         className="w-12 h-12 object-cover rounded-lg border border-gray-200"
                                                     />
-                                                    <button
-                                                        onClick={() => handleDeleteImage(img.id)}
-                                                        className="absolute -top-1 -right-1 bg-red-500 text-white rounded-full w-4 h-4 text-xs leading-none hidden group-hover:flex items-center justify-center"
-                                                    >
-                                                        ×
-                                                    </button>
+                                                    {canDelete && (
+                                                        <button
+                                                            onClick={() => handleDeleteImage(img.id)}
+                                                            className="absolute -top-1 -right-1 bg-red-500 text-white rounded-full w-4 h-4 text-xs leading-none hidden group-hover:flex items-center justify-center"
+                                                        >
+                                                            ×
+                                                        </button>
+                                                    )}
                                                 </div>
                                             ))}
                                         </div>
                                     </td>
-                                    <td className="px-6 py-4 text-right space-x-2">
-                                        <button
-                                            onClick={() => handleEdit(product)}
-                                            className="text-indigo-600 hover:text-indigo-800 text-sm font-medium"
-                                        >
-                                            Edit
-                                        </button>
-                                        <button
-                                            onClick={() => handleDelete(product.id)}
-                                            className="text-red-600 hover:text-red-800 text-sm font-medium"
-                                        >
-                                            Delete
-                                        </button>
-                                    </td>
+                                    {(canEdit || canDelete) && (
+                                        <td className="px-6 py-4 text-right space-x-2">
+                                            {canEdit && (
+                                                <button
+                                                    onClick={() => handleEdit(product)}
+                                                    className="text-indigo-600 hover:text-indigo-800 text-sm font-medium"
+                                                >
+                                                    Edit
+                                                </button>
+                                            )}
+                                            {canDelete && (
+                                                <button
+                                                    onClick={() => handleDelete(product.id)}
+                                                    className="text-red-600 hover:text-red-800 text-sm font-medium"
+                                                >
+                                                    Delete
+                                                </button>
+                                            )}
+                                        </td>
+                                    )}
                                 </tr>
                             ))}
                         </tbody>
