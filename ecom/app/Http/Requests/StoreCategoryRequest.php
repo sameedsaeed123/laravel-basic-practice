@@ -3,14 +3,11 @@
 namespace App\Http\Requests;
 
 use Illuminate\Foundation\Http\FormRequest;
-use Illuminate\Contracts\Validation\Validator;
-use Illuminate\Http\Exceptions\HttpResponseException;
 
 class StoreCategoryRequest extends FormRequest
 {
     public function authorize(): bool
     {
-        
         return true;
     }
 
@@ -28,14 +25,5 @@ class StoreCategoryRequest extends FormRequest
             'name.string' => 'Category name must be a string.',
             'name.max' => 'Category name may not be greater than 255 characters.',
         ];
-    }
-
-    protected function failedValidation(Validator $validator): void
-    {
-        throw new HttpResponseException(response()->json([
-            'status' => false,
-            'message' => 'Validation error',
-            'errors' => $validator->errors(),
-        ], 422));
     }
 }

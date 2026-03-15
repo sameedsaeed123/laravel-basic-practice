@@ -3,16 +3,18 @@
 namespace App\Http\Controllers;
 
 use App\Models\Coupon;
+use App\Traits\ApiResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
-use Illuminate\Support\Facades\Validator;
 use Stripe\Coupon as StripeCoupon;
 use Stripe\PromotionCode;
 use Stripe\Stripe;
 
 class CouponController extends Controller
 {
+    use ApiResponse;
+
     public function __construct()
     {
         Stripe::setApiKey(config('services.stripe.secret'));
@@ -20,12 +22,13 @@ class CouponController extends Controller
 
     public function index()
     {
-        return response()->json(Coupon::orderBy('id', 'desc')->get());
+        $coupons = Coupon::orderBy('id', 'desc')->get();
+        return $this->success($coupons, 'Coupons retrieved successfully.');
     }
 
     public function store(Request $request)
     {
-        $validator = Validator::make($request->all(), [
+        $request->validate([
             'code' => 'required|string|max:255|unique:coupons,code',
             'discount_type' => 'required|in:percent_off,amount_off',
             'discount_value' => 'required|numeric|min:0.01',
@@ -35,33 +38,17 @@ class CouponController extends Controller
             'expires_at' => 'nullable|date|after:now',
         ]);
 
-        if ($validator->fails()) {
-            return response()->json([
-                'status' => false,
-                'message' => 'Validation error',
-                'errors' => $validator->errors(),
-            ], 422);
-        }
-
         if ($request->discount_type === 'percent_off') {
             if (!is_numeric($request->discount_value) || floor((float) $request->discount_value) != (float) $request->discount_value) {
-                return response()->json([
-                    'status' => false,
-                    'message' => 'Validation error',
-                    'errors' => [
-                        'discount_value' => ['Percentage discount must be a whole number.'],
-                    ],
-                ], 422);
+                return $this->error('Validation error.', 422, [
+                    'discount_value' => ['Percentage discount must be a whole number.'],
+                ]);
             }
 
             if ((int) $request->discount_value < 1 || (int) $request->discount_value > 100) {
-                return response()->json([
-                    'status' => false,
-                    'message' => 'Validation error',
-                    'errors' => [
-                        'discount_value' => ['Percentage discount must be between 1 and 100.'],
-                    ],
-                ], 422);
+                return $this->error('Validation error.', 422, [
+                    'discount_value' => ['Percentage discount must be between 1 and 100.'],
+                ]);
             }
         }
 
@@ -125,44 +112,29 @@ class CouponController extends Controller
 
             DB::commit();
 
-            return response()->json([
-                'status' => true,
-                'message' => 'Coupon created successfully',
-                'coupon' => $coupon,
-            ], 201);
+            return $this->success($coupon, 'Coupon created successfully.', 201);
         } catch (\Throwable $e) {
             DB::rollBack();
             Log::error('Coupon creation failed: ' . $e->getMessage());
-            return response()->json([
-                'status' => false,
-                'message' => 'Failed to create coupon: ' . $e->getMessage(),
-            ], 500);
+            return $this->error('Failed to create coupon: ' . $e->getMessage(), 500);
         }
     }
 
     public function show($id)
     {
         $coupon = Coupon::findOrFail($id);
-        return response()->json($coupon);
+        return $this->success($coupon, 'Coupon retrieved successfully.');
     }
 
     public function update(Request $request, $id)
     {
         $coupon = Coupon::findOrFail($id);
 
-        $validator = Validator::make($request->all(), [
+        $request->validate([
             'is_active' => 'required|boolean',
             'max_redemptions' => 'nullable|integer|min:1',
             'expires_at' => 'nullable|date|after:now',
         ]);
-
-        if ($validator->fails()) {
-            return response()->json([
-                'status' => false,
-                'message' => 'Validation error',
-                'errors' => $validator->errors(),
-            ], 422);
-        }
 
         DB::beginTransaction();
         try {
@@ -184,18 +156,11 @@ class CouponController extends Controller
 
             DB::commit();
 
-            return response()->json([
-                'status' => true,
-                'message' => 'Coupon updated successfully',
-                'coupon' => $coupon->fresh(),
-            ]);
+            return $this->success($coupon->fresh(), 'Coupon updated successfully.');
         } catch (\Throwable $e) {
             DB::rollBack();
             Log::error('Coupon update failed: ' . $e->getMessage());
-            return response()->json([
-                'status' => false,
-                'message' => 'Failed to update coupon: ' . $e->getMessage(),
-            ], 500);
+            return $this->error('Failed to update coupon: ' . $e->getMessage(), 500);
         }
     }
 
@@ -224,72 +189,48 @@ class CouponController extends Controller
             $coupon->delete();
             DB::commit();
 
-            return response()->json([
-                'status' => true,
-                'message' => 'Coupon deleted successfully',
-            ]);
+            return $this->success(null, 'Coupon deleted successfully.');
         } catch (\Throwable $e) {
             DB::rollBack();
-            return response()->json([
-                'status' => false,
-                'message' => 'Failed to delete coupon',
-            ], 500);
+            return $this->error('Failed to delete coupon.', 500);
         }
     }
 
     public function validate(Request $request)
     {
-        $validator = Validator::make($request->all(), [
+        $request->validate([
             'code' => 'required|string',
             'amount' => 'required|numeric|min:0.01',
         ]);
 
-        if ($validator->fails()) {
-            return response()->json([
-                'status' => false,
-                'message' => 'Validation error',
-                'errors' => $validator->errors(),
-            ], 422);
-        }
-
         $coupon = Coupon::where('code', strtoupper($request->code))->first();
 
         if (!$coupon) {
-            return response()->json([
-                'status' => false,
-                'message' => 'Invalid coupon code',
-            ], 404);
+            return $this->error('Invalid coupon code.', 404);
         }
 
         if (!$coupon->isValid()) {
-            $reason = 'Coupon is no longer valid';
+            $reason = 'Coupon is no longer valid.';
             if (!$coupon->is_active) {
-                $reason = 'This coupon has been deactivated';
+                $reason = 'This coupon has been deactivated.';
             } elseif ($coupon->expires_at && $coupon->expires_at->isPast()) {
-                $reason = 'This coupon has expired';
+                $reason = 'This coupon has expired.';
             } elseif ($coupon->max_redemptions && $coupon->times_redeemed >= $coupon->max_redemptions) {
-                $reason = 'This coupon has reached its maximum usage limit';
+                $reason = 'This coupon has reached its maximum usage limit.';
             }
 
-            return response()->json([
-                'status' => false,
-                'message' => $reason,
-            ], 422);
+            return $this->error($reason, 422);
         }
 
         $discount = $coupon->calculateDiscount((float) $request->amount);
         $finalAmount = round((float) $request->amount - $discount, 2);
 
-        return response()->json([
-            'status' => true,
-            'message' => 'Coupon applied successfully',
-            'coupon' => [
-                'code' => $coupon->code,
-                'discount_type' => $coupon->discount_type,
-                'discount_value' => $coupon->discount_value,
-                'discount_amount' => $discount,
-                'final_amount' => max(0, $finalAmount),
-            ],
-        ]);
+        return $this->success([
+            'code' => $coupon->code,
+            'discount_type' => $coupon->discount_type,
+            'discount_value' => $coupon->discount_value,
+            'discount_amount' => $discount,
+            'final_amount' => max(0, $finalAmount),
+        ], 'Coupon applied successfully.');
     }
 }

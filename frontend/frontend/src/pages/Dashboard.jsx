@@ -13,9 +13,9 @@ export default function Dashboard() {
                     api.get('/products'),
                 ]);
                 setStats({
-                    categories: cats.data.length,
-                    subCategories: subs.data.length,
-                    products: prods.data.length,
+                    categories: cats.data.data.length,
+                    subCategories: subs.data.data.length,
+                    products: prods.data.data.length,
                 });
             } catch (e) {}
         };

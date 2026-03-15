@@ -4,25 +4,26 @@ namespace App\Http\Controllers;
 
 use App\Models\Product;
 use App\Models\ProductImage;
+use App\Traits\ApiResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
-use Illuminate\Support\Facades\Validator;
 use Stripe\Price;
 use Stripe\Product as StripeProduct;
 use Stripe\Stripe;
 
 class ProductController extends Controller
 {
+    use ApiResponse;
+
     public function index()
     {
-        return response()->json(
-            Product::with(['category', 'subCategory', 'images'])->get()
-        );
+        $products = Product::with(['category', 'subCategory', 'images'])->get();
+        return $this->success($products, 'Products retrieved successfully.');
     }
 
     public function store(Request $request)
     {
-        $validator = Validator::make($request->all(), [
+        $request->validate([
             'title' => 'required|string|max:255',
             'price' => 'required|numeric|min:0',
             'category_id' => 'required|exists:categories,id',
@@ -30,7 +31,6 @@ class ProductController extends Controller
             'images.*' => 'image|mimes:jpeg,png,jpg,gif|max:2048',
         ], [
             'title.required' => 'Product title is required.',
-            'title.max' => 'Product title may not exceed 255 characters.',
             'price.required' => 'Product price is required.',
             'price.numeric' => 'Product price must be a number.',
             'price.min' => 'Product price must be at least 0.',
@@ -41,14 +41,6 @@ class ProductController extends Controller
             'images.*.mimes' => 'Images must be jpeg, png, jpg, or gif.',
             'images.*.max' => 'Each image may not exceed 2MB.',
         ]);
-
-        if ($validator->fails()) {
-            return response()->json([
-                'status' => false,
-                'message' => 'Validation error',
-                'errors' => $validator->errors(),
-            ], 422);
-        }
 
         $product = Product::create($request->only('title', 'price', 'category_id', 'sub_category_id'));
 
@@ -64,23 +56,22 @@ class ProductController extends Controller
             }
         }
 
-        return response()->json([
-            'status' => true,
-            'message' => 'Product created successfully',
-            'product' => $product->load(['category', 'subCategory', 'images']),
-        ], 201);
+        return $this->success(
+            $product->load(['category', 'subCategory', 'images']),
+            'Product created successfully.',
+            201
+        );
     }
 
     public function show($id)
     {
         $product = Product::with(['category', 'subCategory', 'images'])->findOrFail($id);
-
-        return response()->json($product);
+        return $this->success($product, 'Product retrieved successfully.');
     }
 
     public function update(Request $request, $id)
     {
-        $validator = Validator::make($request->all(), [
+        $request->validate([
             'title' => 'required|string|max:255',
             'price' => 'required|numeric|min:0',
             'category_id' => 'required|exists:categories,id',
@@ -88,7 +79,6 @@ class ProductController extends Controller
             'images.*' => 'image|mimes:jpeg,png,jpg,gif|max:2048',
         ], [
             'title.required' => 'Product title is required.',
-            'title.max' => 'Product title may not exceed 255 characters.',
             'price.required' => 'Product price is required.',
             'price.numeric' => 'Product price must be a number.',
             'price.min' => 'Product price must be at least 0.',
@@ -99,14 +89,6 @@ class ProductController extends Controller
             'images.*.mimes' => 'Images must be jpeg, png, jpg, or gif.',
             'images.*.max' => 'Each image may not exceed 2MB.',
         ]);
-
-        if ($validator->fails()) {
-            return response()->json([
-                'status' => false,
-                'message' => 'Validation error',
-                'errors' => $validator->errors(),
-            ], 422);
-        }
 
         $product = Product::findOrFail($id);
         $product->update($request->only('title', 'price', 'category_id', 'sub_category_id'));
@@ -127,11 +109,10 @@ class ProductController extends Controller
             }
         }
 
-        return response()->json([
-            'status' => true,
-            'message' => 'Product updated successfully',
-            'product' => $product->load(['category', 'subCategory', 'images']),
-        ]);
+        return $this->success(
+            $product->load(['category', 'subCategory', 'images']),
+            'Product updated successfully.'
+        );
     }
 
     public function destroy($id)
@@ -144,10 +125,7 @@ class ProductController extends Controller
 
         $product->delete();
 
-        return response()->json([
-            'status' => true,
-            'message' => 'Product deleted successfully',
-        ]);
+        return $this->success(null, 'Product deleted successfully.');
     }
 
     public function deleteImage($id)
@@ -156,10 +134,7 @@ class ProductController extends Controller
         Storage::disk('public')->delete($image->image);
         $image->delete();
 
-        return response()->json([
-            'status' => true,
-            'message' => 'Image deleted successfully',
-        ]);
+        return $this->success(null, 'Image deleted successfully.');
     }
 
     private function syncProductToStripe(Product $product): void
@@ -180,7 +155,7 @@ class ProductController extends Controller
             try {
                 $existingPrice = Price::retrieve($product->stripe_price_id);
                 if ((int) $existingPrice->unit_amount === $unitAmount && $existingPrice->active) {
-                    return; 
+                    return;
                 }
             } catch (\Throwable $e) {
             }

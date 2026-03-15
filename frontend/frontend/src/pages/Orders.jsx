@@ -9,7 +9,7 @@ export default function Orders() {
         const fetchOrders = async () => {
             try {
                 const res = await api.get('/orders');
-                setOrders(res.data);
+                setOrders(res.data.data);
             } catch (e) {
                 setOrders([]);
             } finally {

@@ -7,11 +7,11 @@ use App\Models\Coupon;
 use App\Models\Order;
 use App\Models\OrderItem;
 use App\Models\Product;
+use App\Traits\ApiResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Mail;
-use Illuminate\Support\Facades\Validator;
 use Stripe\Checkout\Session as StripeSession;
 use Stripe\Price;
 use Stripe\Product as StripeProduct;
@@ -20,6 +20,8 @@ use Stripe\Webhook;
 
 class StripeController extends Controller
 {
+    use ApiResponse;
+
     public function __construct()
     {
         Stripe::setApiKey(config('services.stripe.secret'));
@@ -27,37 +29,25 @@ class StripeController extends Controller
 
     public function checkout()
     {
-        return response()->json(['message' => 'Use POST /stripe/checkout-session with product_id, quantity, and optional coupon_code']);
+        return $this->success(null, 'Use POST /stripe/checkout-session with product_id, quantity, and optional coupon_code.');
     }
 
     public function session(Request $request)
     {
-        $validator = Validator::make($request->all(), [
+        $request->validate([
             'product_id' => 'required|integer|exists:products,id',
             'quantity' => 'sometimes|integer|min:1|max:100',
             'coupon_code' => 'nullable|string|max:255',
         ]);
 
-        if ($validator->fails()) {
-            return response()->json([
-                'status' => false,
-                'message' => 'Validation error',
-                'errors' => $validator->errors(),
-            ], 422);
-        }
-
         $quantity = (int) $request->input('quantity', 1);
         $product = Product::findOrFail($request->product_id);
 
-        // Ensure product has a Stripe price (prevents duplicate creation)
         $this->ensureProductHasStripePrice($product);
         $product->refresh();
 
         if (!$product->stripe_price_id) {
-            return response()->json([
-                'status' => false,
-                'message' => 'Product is not available for checkout at this time',
-            ], 500);
+            return $this->error('Product is not available for checkout at this time.', 500);
         }
 
         $lineItem = [
@@ -80,15 +70,11 @@ class StripeController extends Controller
             ],
         ];
 
-        // Apply coupon if provided — validate from our DB first
         if ($request->coupon_code) {
             $coupon = Coupon::where('code', strtoupper($request->coupon_code))->first();
 
             if (!$coupon || !$coupon->isValid()) {
-                return response()->json([
-                    'status' => false,
-                    'message' => 'Invalid or expired coupon code',
-                ], 422);
+                return $this->error('Invalid or expired coupon code.', 422);
             }
 
             if ($coupon->stripe_coupon_id) {
@@ -98,7 +84,6 @@ class StripeController extends Controller
                 $sessionParams['metadata']['coupon_id'] = (string) $coupon->id;
             }
         } else {
-            // Only allow Stripe promotion codes if no coupon from our DB
             $sessionParams['allow_promotion_codes'] = true;
         }
 
@@ -108,16 +93,10 @@ class StripeController extends Controller
 
         try {
             $session = StripeSession::create($sessionParams);
-            return response()->json([
-                'status' => true,
-                'url' => $session->url,
-            ]);
+            return $this->success(['url' => $session->url], 'Checkout session created.');
         } catch (\Throwable $e) {
             Log::error('Stripe session creation failed: ' . $e->getMessage());
-            return response()->json([
-                'status' => false,
-                'message' => 'Failed to create checkout session',
-            ], 500);
+            return $this->error('Failed to create checkout session.', 500);
         }
     }
 
@@ -151,7 +130,6 @@ class StripeController extends Controller
 
     private function createOrderFromSession($session): void
     {
-        // Idempotency — prevent duplicate orders
         $existing = Order::where('stripe_session_id', $session->id)->first();
         if ($existing) {
             return;
@@ -167,13 +145,11 @@ class StripeController extends Controller
             $userId = $user?->id;
         }
 
-        // Extract coupon info
         $stripeCouponId = null;
         $couponType = null;
         $localCouponId = null;
 
         try {
-            // Check metadata for our local coupon first
             $metadata = $session->metadata ?? (object) [];
             if (!empty($metadata->coupon_id)) {
                 $localCoupon = Coupon::find($metadata->coupon_id);
@@ -184,7 +160,6 @@ class StripeController extends Controller
                 }
             }
 
-            // Fallback: extract from Stripe discounts
             if (!$stripeCouponId && !empty($session->discounts)) {
                 $first = is_array($session->discounts) ? ($session->discounts[0] ?? null) : ($session->discounts[0] ?? null);
                 if ($first) {
@@ -232,14 +207,12 @@ class StripeController extends Controller
                 }
             }
 
-            // Increment coupon usage
             if ($localCouponId) {
                 Coupon::where('id', $localCouponId)->increment('times_redeemed');
             }
 
             DB::commit();
 
-            // Send order confirmation email
             if ($email) {
                 try {
                     $order->load(['items.product']);
@@ -254,13 +227,8 @@ class StripeController extends Controller
         }
     }
 
-    /**
-     * Ensure product has a Stripe product and CURRENT price.
-     * Only creates a new Stripe price when the price has actually changed.
-     */
     private function ensureProductHasStripePrice(Product $product): void
     {
-        // Create Stripe product if missing
         if (!$product->stripe_product_id) {
             $stripeProduct = StripeProduct::create([
                 'name' => $product->title,
@@ -271,20 +239,17 @@ class StripeController extends Controller
 
         $unitAmount = (int) round($product->price * 100);
 
-        // Check if current price already matches — avoid creating duplicate prices
         if ($product->stripe_price_id) {
             try {
                 $existingPrice = Price::retrieve($product->stripe_price_id);
                 if ((int) $existingPrice->unit_amount === $unitAmount && $existingPrice->active) {
-                    return; // Price is already correct, no need to create a new one
+                    return;
                 }
             } catch (\Throwable $e) {
-                // Price doesn't exist on Stripe anymore, create a new one
                 Log::warning('Stripe price retrieval failed, creating new: ' . $e->getMessage());
             }
         }
 
-        // Create new price (Stripe prices are immutable)
         $stripePrice = Price::create([
             'product' => $product->stripe_product_id,
             'unit_amount' => $unitAmount,

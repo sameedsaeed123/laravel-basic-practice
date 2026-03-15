@@ -23,7 +23,7 @@ export default function Coupons() {
     const fetchCoupons = async () => {
         try {
             const res = await api.get('/coupons');
-            setCoupons(res.data);
+            setCoupons(res.data.data);
         } catch (e) {
             setError('Failed to load coupons');
         }

@@ -21,9 +21,9 @@ export default function Products() {
                 api.get('/categories'),
                 api.get('/sub-categories'),
             ]);
-            setProducts(prodRes.data);
-            setCategories(catsRes.data);
-            setSubCategories(subsRes.data);
+            setProducts(prodRes.data.data);
+            setCategories(catsRes.data.data);
+            setSubCategories(subsRes.data.data);
         } catch (e) {}
     };
 

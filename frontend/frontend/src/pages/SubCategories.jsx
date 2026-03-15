@@ -17,8 +17,8 @@ export default function SubCategories() {
                 api.get('/sub-categories'),
                 api.get('/categories'),
             ]);
-            setSubCategories(subsRes.data);
-            setCategories(catsRes.data);
+            setSubCategories(subsRes.data.data);
+            setCategories(catsRes.data.data);
         } catch (e) {}
     };
 

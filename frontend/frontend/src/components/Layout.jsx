@@ -3,18 +3,25 @@ import { useAuth } from '../AuthContext';
 import { useState } from 'react';
 
 export default function Layout() {
-    const { user, logout } = useAuth();
+    const { user, logout, hasPermission } = useAuth();
     const location = useLocation();
     const [sidebarOpen, setSidebarOpen] = useState(false);
 
-    const links = [
-        { to: '/admin', label: 'Dashboard' },
-        { to: '/admin/categories', label: 'Categories' },
-        { to: '/admin/sub-categories', label: 'Sub Categories' },
-        { to: '/admin/products', label: 'Products' },
-        { to: '/admin/orders', label: 'Orders' },
-        { to: '/admin/coupons', label: 'Coupons' },
+    const allLinks = [
+        { to: '/admin', label: 'Dashboard', permission: null },
+        { to: '/admin/categories', label: 'Categories', permission: 'manage-categories' },
+        { to: '/admin/sub-categories', label: 'Sub Categories', permission: 'manage-sub-categories' },
+        { to: '/admin/products', label: 'Products', permission: 'view-products' },
+        { to: '/admin/orders', label: 'Orders', permission: 'view-orders' },
+        { to: '/admin/coupons', label: 'Coupons', permission: 'manage-coupons' },
+        { to: '/admin/roles', label: 'Roles', permission: 'manage-roles' },
+        { to: '/admin/permissions', label: 'Permissions', permission: 'manage-permissions' },
+        { to: '/admin/users', label: 'Users', permission: 'manage-users' },
     ];
+
+    const links = allLinks.filter(
+        (link) => link.permission === null || hasPermission(link.permission)
+    );
 
     const isActive = (path) => location.pathname === path;
 
@@ -36,6 +43,15 @@ export default function Layout() {
                         </div>
                         <div className="flex items-center gap-4">
                             <span className="hidden sm:block text-sm">{user?.name}</span>
+                            <Link
+                                to="/"
+                                className="hidden sm:inline-flex items-center gap-1 bg-indigo-600 hover:bg-indigo-500 px-3 py-1.5 rounded text-sm transition"
+                            >
+                                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-4 0a1 1 0 01-1-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 01-1 1" />
+                                </svg>
+                                Store
+                            </Link>
                             <button
                                 onClick={logout}
                                 className="bg-indigo-800 hover:bg-indigo-900 px-4 py-2 rounded text-sm"

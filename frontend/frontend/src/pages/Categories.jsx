@@ -13,7 +13,7 @@ export default function Categories() {
     const fetchCategories = async () => {
         try {
             const res = await api.get('/categories');
-            setCategories(res.data);
+            setCategories(res.data.data);
         } catch (e) {}
     };
 

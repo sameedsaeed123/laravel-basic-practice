@@ -2,44 +2,54 @@
 
 namespace App\Http\Controllers;
 
-use App\Http\Requests\StoreCategoryRequest;
-use App\Http\Requests\UpdateCategoryRequest;
 use App\Models\Category;
+use App\Traits\ApiResponse;
+use Illuminate\Http\Request;
 
 class CategoryController extends Controller
 {
+    use ApiResponse;
+
     public function index()
     {
-        return response()->json(Category::with('subCategories')->get());
+        $categories = Category::with('subCategories')->get();
+        return $this->success($categories, 'Categories retrieved successfully.');
     }
-    public function store(StoreCategoryRequest $request)
-    {
-        $category = Category::create($request->validated());
 
-        return response()->json([
-            'status' => true,
-            'message' => 'Category created successfully',
-            'category' => $category->load('subCategories'),
-        ], 201);
+    public function store(Request $request)
+    {
+        $request->validate([
+            'name' => 'required|string|max:255',
+        ]);
+
+        $category = Category::create($request->only('name'));
+
+        return $this->success(
+            $category->load('subCategories'),
+            'Category created successfully.',
+            201
+        );
     }
 
     public function show($id)
     {
         $category = Category::with('subCategories')->findOrFail($id);
-
-        return response()->json($category);
+        return $this->success($category, 'Category retrieved successfully.');
     }
 
-    public function update(UpdateCategoryRequest $request, $id)
+    public function update(Request $request, $id)
     {
-        $category = Category::findOrFail($id);
-        $category->update($request->validated());
-
-        return response()->json([
-            'status' => true,
-            'message' => 'Category updated successfully',
-            'category' => $category->load('subCategories'),
+        $request->validate([
+            'name' => 'required|string|max:255',
         ]);
+
+        $category = Category::findOrFail($id);
+        $category->update($request->only('name'));
+
+        return $this->success(
+            $category->load('subCategories'),
+            'Category updated successfully.'
+        );
     }
 
     public function destroy($id)
@@ -47,9 +57,6 @@ class CategoryController extends Controller
         $category = Category::findOrFail($id);
         $category->delete();
 
-        return response()->json([
-            'status' => true,
-            'message' => 'Category deleted successfully',
-        ]);
+        return $this->success(null, 'Category deleted successfully.');
     }
 }

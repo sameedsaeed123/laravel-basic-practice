@@ -11,6 +11,9 @@ import SubCategories from './pages/SubCategories';
 import Products from './pages/Products';
 import Orders from './pages/Orders';
 import Coupons from './pages/Coupons';
+import Roles from './pages/Roles';
+import Permissions from './pages/Permissions';
+import Users from './pages/Users';
 import HomePage from './pages/HomePage';
 import Checkout from './pages/Checkout';
 import CheckoutSuccess from './pages/CheckoutSuccess';
@@ -46,6 +49,9 @@ function App() {
                 <Route path="products" element={<Products />} />
                 <Route path="orders" element={<Orders />} />
                 <Route path="coupons" element={<Coupons />} />
+                <Route path="roles" element={<Roles />} />
+                <Route path="permissions" element={<Permissions />} />
+                <Route path="users" element={<Users />} />
             </Route>
         </Routes>
     );

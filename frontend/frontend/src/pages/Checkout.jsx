@@ -27,7 +27,8 @@ export default function Checkout() {
         }
         axios.get(`${API_BASE}/api/public/products`)
             .then(res => {
-                const found = res.data.find(p => String(p.id) === String(productId));
+                const products = res.data.data || res.data;
+                const found = (Array.isArray(products) ? products : []).find(p => String(p.id) === String(productId));
                 if (found) {
                     setProduct(found);
                 } else {
@@ -52,7 +53,7 @@ export default function Checkout() {
                 code: couponCode.trim(),
                 amount: Number(product.price),
             });
-            setCouponResult(res.data.coupon);
+            setCouponResult(res.data.data);
         } catch (err) {
             setCouponError(err.response?.data?.message || 'Invalid coupon');
             setCouponResult(null);
@@ -78,8 +79,9 @@ export default function Checkout() {
                 payload.coupon_code = couponResult.code;
             }
             const { data } = await api.post('/stripe/checkout-session', payload);
-            if (data.url) {
-                window.location.href = data.url;
+            const url = data.data?.url || data.url;
+            if (url) {
+                window.location.href = url;
                 return;
             }
             setError(data.message || 'Failed to start checkout');

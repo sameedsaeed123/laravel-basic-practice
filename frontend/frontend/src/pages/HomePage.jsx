@@ -18,7 +18,7 @@ export default function HomePage() {
 
     useEffect(() => {
         axios.get(`${API_BASE}/api/public/products`)
-            .then(res => setProducts(res.data))
+            .then(res => setProducts(res.data.data || res.data))
             .catch(() => {})
             .finally(() => setLoading(false));
     }, []);
@@ -108,7 +108,7 @@ export default function HomePage() {
                                                 onClick={() => setDropdownOpen(false)}
                                                 className="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-50"
                                             >
-                                                Admin Panel
+                                                Dashboard
                                             </Link>
                                         )}
                                         <button

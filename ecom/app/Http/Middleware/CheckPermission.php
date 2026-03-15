@@ -6,9 +6,12 @@ use Closure;
 use Illuminate\Http\Request;
 use Symfony\Component\HttpFoundation\Response;
 
-class EnsureAdmin
+class CheckPermission
 {
-    public function handle(Request $request, Closure $next): Response
+    /**
+     * @param string $permission  The required permission name, passed from route definition
+     */
+    public function handle(Request $request, Closure $next, string $permission): Response
     {
         $user = $request->user();
 
@@ -19,12 +22,12 @@ class EnsureAdmin
             ], 401);
         }
 
-        $user->load('roles');
+        $user->load('roles.permissions');
 
-        if ($user->role !== 'admin' && $user->roles->isEmpty()) {
+        if (!$user->hasPermission($permission)) {
             return response()->json([
                 'status' => false,
-                'message' => 'Access denied. You do not have admin panel access.',
+                'message' => "Access denied. You do not have the required permission: {$permission}",
             ], 403);
         }
 
