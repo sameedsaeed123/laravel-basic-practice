@@ -8,9 +8,6 @@ use Symfony\Component\HttpFoundation\Response;
 
 class CheckPermission
 {
-    /**
-     * @param string $permission  The required permission name, passed from route definition
-     */
     public function handle(Request $request, Closure $next, string $permission): Response
     {
         $user = $request->user();
