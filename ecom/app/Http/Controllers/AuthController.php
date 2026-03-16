@@ -3,22 +3,29 @@
 namespace App\Http\Controllers;
 
 use App\Models\User;
-use App\Traits\ApiResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Password;
+use Illuminate\Support\Facades\Validator;
+use Illuminate\Validation\ValidationException;
 
 class AuthController extends Controller
 {
-    use ApiResponse;
+
 
     public function register(Request $request)
-    {
-        $request->validate([
+    {      
+   $validator= Validator::make($request->all(),[
             'name' => 'required|string|max:255',
             'email' => 'required|string|email|unique:users',
             'password' => 'required|string|min:6|confirmed',
         ]);
+        if ($validator->fails()) {
+            return response()->json([    'status'=>false,
+                'message'=>'Validation error',
+                'errors'=>$validator->errors()]
+            , 422);
+         }
 
         $user = User::create([
             'name' => $request->name,
@@ -29,59 +36,94 @@ class AuthController extends Controller
 
         $token = $user->createToken('auth_token')->plainTextToken;
 
-        return $this->success([
+        return response()->json([
+            'status' => true,
+            'message' => 'User registered successfully',
             'user' => $user,
             'token' => $token,
-        ], 'User registered successfully.', 201);
+        ], 201);
     }
 
     public function login(Request $request)
     {
-        $request->validate([
+        $validator = Validator::make($request->all(), [
             'email' => 'required|email',
-            'password' => 'required|string',
+            'password' => 'required|string'
         ]);
+
+        if ($validator->fails()) {
+            return response()->json([
+                'status' => false,
+                'message' => 'Validation error',
+                'errors' => $validator->errors()
+            ], 422);
+        }
 
         $user = User::where('email', $request->email)->first();
 
         if (!$user || !Hash::check($request->password, $user->password)) {
-            return $this->error('Invalid credentials.', 401);
+            return response()->json([
+                'status' => false,
+                'message' => 'Invalid credentials'
+            ], 401);
         }
 
         $token = $user->createToken('auth_token')->plainTextToken;
 
-        $user->load('roles.permissions');
-        $permissions = $user->getAllPermissions()->pluck('name');
-
-        return $this->success([
+        return response()->json([
+            'status' => true,
+            'message' => 'Login successful',
             'user' => $user,
-            'token' => $token,
-            'permissions' => $permissions,
-        ], 'Login successful.');
+            'token' => $token
+        ]);
     }
 
     public function forgotPassword(Request $request)
     {
-        $request->validate([
-            'email' => 'required|email|exists:users,email',
+        $validator = Validator::make($request->all(), [
+            'email' => 'required|email|exists:users,email'
         ]);
 
-        $status = Password::sendResetLink($request->only('email'));
-
-        if ($status === Password::RESET_LINK_SENT) {
-            return $this->success(null, 'Password reset link sent to your email.');
+        if ($validator->fails()) {
+            return response()->json([
+                'status' => false,
+                'message' => 'Validation error',
+                'errors' => $validator->errors()
+            ], 422);
         }
 
-        return $this->error(__($status), 400);
+$status = Password::sendResetLink($request->only('email'));
+
+if ($status === Password::RESET_LINK_SENT) {
+    return response()->json([
+        'status' => true,
+        'message' => 'Password reset link sent to your email'
+    ]);
+}
+
+return response()->json([
+    'status' => false,
+    'message' => __($status)
+], 400);
+
+        
     }
 
     public function resetPassword(Request $request)
     {
-        $request->validate([
+        $validator = Validator::make($request->all(), [
             'email' => 'required|email',
             'password' => 'required|string|min:6|confirmed',
-            'token' => 'required',
+            'token' => 'required'
         ]);
+
+        if ($validator->fails()) {
+            return response()->json([
+                'status' => false,
+                'message' => 'Validation error',
+                'errors' => $validator->errors()
+            ], 422);
+        }
 
         $status = Password::reset(
             $request->only('email', 'password', 'password_confirmation', 'token'),
@@ -91,27 +133,20 @@ class AuthController extends Controller
             }
         );
 
-        return $status === Password::PASSWORD_RESET
-            ? $this->success(null, 'Password has been reset successfully.')
-            : $this->error('Failed to reset password.', 500);
+        return $status === Password::PASSWORD_RESET ? response()->json(['status' => true, 'message' => 'Password reset successfully'])
+            : response()->json(['status' => false, 'message' => 'Failed to reset password'], 500);
     }
+
 
     public function logout(Request $request)
     {
         $request->user()->currentAccessToken()->delete();
 
-        return $this->success(null, 'Logged out successfully.');
+        return response()->json(['message' => 'Logged out']);
     }
 
     public function user(Request $request)
     {
-        $user = $request->user();
-        $user->load('roles.permissions');
-        $permissions = $user->getAllPermissions()->pluck('name');
-
-        return $this->success([
-            'user' => $user,
-            'permissions' => $permissions,
-        ], 'User retrieved successfully.');
+        return response()->json($request->user());
     }
 }
