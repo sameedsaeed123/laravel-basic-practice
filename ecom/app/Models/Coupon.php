@@ -31,9 +31,6 @@ class Coupon extends Model
         ];
     }
 
-    /**
-     * Check if coupon is currently valid for use.
-     */
     public function isValid(): bool
     {
         if (!$this->is_active) {
@@ -51,16 +48,11 @@ class Coupon extends Model
         return true;
     }
 
-    /**
-     * Calculate discounted price for a given amount.
-     */
     public function calculateDiscount(float $amount): float
     {
         if ($this->discount_type === 'percent_off') {
             return round($amount * ($this->discount_value / 100), 2);
         }
-
-        // amount_off
         return min((float) $this->discount_value, $amount);
     }
 }
