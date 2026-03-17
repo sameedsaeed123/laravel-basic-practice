@@ -43,7 +43,7 @@ export default function HomePage() {
 
     const getImageUrl = (product) => {
         if (product.images && product.images.length > 0) {
-            return `${API_BASE}/storage/${product.images[0].image}`;
+            return `${API_BASE}/${product.images[0].image}`;
         }
         return null;
     };

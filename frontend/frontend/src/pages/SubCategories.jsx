@@ -2,9 +2,11 @@ import { useEffect, useState } from 'react';
 import { useAuth } from '../AuthContext';
 import api from '../api';
 import Toast from '../components/Toast';
+import { useToast } from '../ToastContext';
 
 export default function SubCategories() {
     const { hasPermission } = useAuth();
+    const { showToast } = useToast();
     const canManage = hasPermission('manage-sub-categories');
 
     const [subCategories, setSubCategories] = useState([]);
@@ -42,9 +44,11 @@ export default function SubCategories() {
         setLoading(true);
         try {
             if (editId) {
-                await api.put(`/sub-categories/${editId}`, form);
+                const res = await api.put(`/sub-categories/${editId}`, form);
+                showToast(res.data.message || 'Sub category updated successfully!', 'success');
             } else {
-                await api.post('/sub-categories', form);
+                const res = await api.post('/sub-categories', form);
+                showToast(res.data.message || 'Sub category created successfully!', 'success');
             }
             setForm({ name: '', category_id: '' });
             setEditId(null);
@@ -68,9 +72,12 @@ export default function SubCategories() {
     const handleDelete = async (id) => {
         if (!window.confirm('Delete this sub category?')) return;
         try {
-            await api.delete(`/sub-categories/${id}`);
+            const res = await api.delete(`/sub-categories/${id}`);
+            showToast(res.data.message || 'Sub category deleted successfully!', 'success');
             fetchData();
-        } catch (e) {}
+        } catch (e) {
+            showToast(e.response?.data?.message || 'Failed to delete sub category', 'error');
+        }
     };
 
     const cancelEdit = () => {

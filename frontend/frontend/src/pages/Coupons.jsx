@@ -14,7 +14,16 @@ export default function Coupons() {
         expires_at: '',
     });
     const [editId, setEditId] = useState(null);
-    const [editForm, setEditForm] = useState({ is_active: true, max_redemptions: '', expires_at: '' });
+    const [editForm, setEditForm] = useState({
+        code: '',
+        discount_type: 'percent_off',
+        discount_value: '',
+        duration: 'once',
+        duration_in_months: '',
+        max_redemptions: '',
+        expires_at: '',
+        is_active: true,
+    });
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState('');
     const [errors, setErrors] = useState({});
@@ -87,12 +96,22 @@ export default function Coupons() {
     const handleEdit = (coupon) => {
         setEditId(coupon.id);
         setEditForm({
-            is_active: coupon.is_active,
+            code: coupon.code,
+            discount_type: coupon.discount_type,
+            discount_value: coupon.discount_value,
+            duration: coupon.duration,
+            duration_in_months: coupon.duration_in_months || '',
             max_redemptions: coupon.max_redemptions || '',
             expires_at: coupon.expires_at ? coupon.expires_at.slice(0, 16) : '',
+            is_active: coupon.is_active,
         });
         setError('');
         setErrors({});
+    };
+
+    const handleEditChange = (e) => {
+        const { name, value } = e.target;
+        setEditForm(prev => ({ ...prev, [name]: value }));
     };
 
     const handleUpdate = async () => {
@@ -101,10 +120,19 @@ export default function Coupons() {
         setSuccess('');
         setLoading(true);
         try {
+            const discountValue = editForm.discount_type === 'percent_off'
+                ? parseInt(editForm.discount_value, 10)
+                : parseFloat(editForm.discount_value);
+
             const payload = {
-                is_active: editForm.is_active,
+                code: editForm.code.toUpperCase(),
+                discount_type: editForm.discount_type,
+                discount_value: discountValue,
+                duration: editForm.duration,
+                duration_in_months: editForm.duration === 'repeating' ? parseInt(editForm.duration_in_months) : null,
                 max_redemptions: editForm.max_redemptions ? parseInt(editForm.max_redemptions) : null,
                 expires_at: editForm.expires_at || null,
+                is_active: editForm.is_active,
             };
             const res = await api.put(`/coupons/${editId}`, payload);
             setSuccess(res.data.message || 'Coupon updated');
@@ -281,7 +309,111 @@ export default function Coupons() {
             {editId && (
                 <div className="bg-white rounded-xl shadow-md p-6 mb-6 border-2 border-indigo-200">
                     <h2 className="text-lg font-semibold mb-4">Edit Coupon #{editId}</h2>
-                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                    <p className="text-xs text-gray-500 mb-4">Updating discount details will deactivate the old Stripe coupon and create a new one.</p>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                        <div>
+                            <label className="block text-sm font-medium text-gray-700 mb-1">Coupon Code</label>
+                            <input
+                                type="text"
+                                name="code"
+                                value={editForm.code}
+                                onChange={handleEditChange}
+                                placeholder="e.g. SAVE20"
+                                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent outline-none uppercase"
+                            />
+                            {errors.code && <p className="text-red-500 text-xs mt-1">{errors.code[0]}</p>}
+                        </div>
+
+                        <div>
+                            <label className="block text-sm font-medium text-gray-700 mb-1">Discount Type</label>
+                            <select
+                                name="discount_type"
+                                value={editForm.discount_type}
+                                onChange={handleEditChange}
+                                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent outline-none"
+                            >
+                                <option value="percent_off">Percentage Off (%)</option>
+                                <option value="amount_off">Fixed Amount Off ($)</option>
+                            </select>
+                            {errors.discount_type && <p className="text-red-500 text-xs mt-1">{errors.discount_type[0]}</p>}
+                        </div>
+
+                        <div>
+                            <label className="block text-sm font-medium text-gray-700 mb-1">
+                                {editForm.discount_type === 'percent_off' ? 'Percentage (0-100)' : 'Amount ($)'}
+                            </label>
+                            <input
+                                type="number"
+                                name="discount_value"
+                                value={editForm.discount_value}
+                                onChange={handleEditChange}
+                                placeholder={editForm.discount_type === 'percent_off' ? '20' : '10.00'}
+                                step={editForm.discount_type === 'percent_off' ? '1' : '0.01'}
+                                min={editForm.discount_type === 'percent_off' ? '1' : '0.01'}
+                                max={editForm.discount_type === 'percent_off' ? '100' : undefined}
+                                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent outline-none"
+                            />
+                            {errors.discount_value && <p className="text-red-500 text-xs mt-1">{errors.discount_value[0]}</p>}
+                        </div>
+
+                        <div>
+                            <label className="block text-sm font-medium text-gray-700 mb-1">Duration</label>
+                            <select
+                                name="duration"
+                                value={editForm.duration}
+                                onChange={handleEditChange}
+                                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent outline-none"
+                            >
+                                <option value="once">Once (single use)</option>
+                                <option value="repeating">Repeating</option>
+                                <option value="forever">Forever</option>
+                            </select>
+                            {errors.duration && <p className="text-red-500 text-xs mt-1">{errors.duration[0]}</p>}
+                        </div>
+
+                        {editForm.duration === 'repeating' && (
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700 mb-1">Duration (months)</label>
+                                <input
+                                    type="number"
+                                    name="duration_in_months"
+                                    value={editForm.duration_in_months}
+                                    onChange={handleEditChange}
+                                    placeholder="3"
+                                    min="1"
+                                    max="36"
+                                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent outline-none"
+                                />
+                                {errors.duration_in_months && <p className="text-red-500 text-xs mt-1">{errors.duration_in_months[0]}</p>}
+                            </div>
+                        )}
+
+                        <div>
+                            <label className="block text-sm font-medium text-gray-700 mb-1">Max Redemptions</label>
+                            <input
+                                type="number"
+                                name="max_redemptions"
+                                value={editForm.max_redemptions}
+                                onChange={handleEditChange}
+                                placeholder="Unlimited"
+                                min="1"
+                                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent outline-none"
+                            />
+                            {errors.max_redemptions && <p className="text-red-500 text-xs mt-1">{errors.max_redemptions[0]}</p>}
+                        </div>
+
+                        <div>
+                            <label className="block text-sm font-medium text-gray-700 mb-1">Expires At</label>
+                            <input
+                                type="datetime-local"
+                                name="expires_at"
+                                value={editForm.expires_at}
+                                onChange={handleEditChange}
+                                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent outline-none"
+                            />
+                            {errors.expires_at && <p className="text-red-500 text-xs mt-1">{errors.expires_at[0]}</p>}
+                        </div>
+
                         <div>
                             <label className="block text-sm font-medium text-gray-700 mb-1">Status</label>
                             <select
@@ -293,28 +425,6 @@ export default function Coupons() {
                                 <option value="false">Inactive</option>
                             </select>
                             {errors.is_active && <p className="text-red-500 text-xs mt-1">{errors.is_active[0]}</p>}
-                        </div>
-                        <div>
-                            <label className="block text-sm font-medium text-gray-700 mb-1">Max Redemptions</label>
-                            <input
-                                type="number"
-                                value={editForm.max_redemptions}
-                                onChange={(e) => setEditForm({ ...editForm, max_redemptions: e.target.value })}
-                                placeholder="Unlimited"
-                                min="1"
-                                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent outline-none"
-                            />
-                            {errors.max_redemptions && <p className="text-red-500 text-xs mt-1">{errors.max_redemptions[0]}</p>}
-                        </div>
-                        <div>
-                            <label className="block text-sm font-medium text-gray-700 mb-1">Expires At</label>
-                            <input
-                                type="datetime-local"
-                                value={editForm.expires_at}
-                                onChange={(e) => setEditForm({ ...editForm, expires_at: e.target.value })}
-                                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent outline-none"
-                            />
-                            {errors.expires_at && <p className="text-red-500 text-xs mt-1">{errors.expires_at[0]}</p>}
                         </div>
                     </div>
                     <div className="flex gap-2 mt-4">

@@ -2,9 +2,11 @@ import { useEffect, useState } from 'react';
 import { useAuth } from '../AuthContext';
 import api from '../api';
 import Toast from '../components/Toast';
+import { useToast } from '../ToastContext';
 
 export default function Products() {
     const { hasPermission } = useAuth();
+    const { showToast } = useToast();
     const canCreate = hasPermission('create-products');
     const canEdit = hasPermission('edit-products');
     const canDelete = hasPermission('delete-products');
@@ -76,13 +78,15 @@ export default function Products() {
 
             if (editId) {
                 data.append('_method', 'PUT');
-                await api.post(`/products/${editId}`, data, {
+                const res = await api.post(`/products/${editId}`, data, {
                     headers: { 'Content-Type': 'multipart/form-data' },
                 });
+                showToast(res.data.message || 'Product updated successfully!', 'success');
             } else {
-                await api.post('/products', data, {
+                const res = await api.post('/products', data, {
                     headers: { 'Content-Type': 'multipart/form-data' },
                 });
+                showToast(res.data.message || 'Product created successfully!', 'success');
             }
             setForm({ title: '', price: '', category_id: '', sub_category_id: '' });
             setImages([]);
@@ -115,18 +119,24 @@ export default function Products() {
         if (!canDelete) return;
         if (!window.confirm('Delete this product?')) return;
         try {
-            await api.delete(`/products/${id}`);
+            const res = await api.delete(`/products/${id}`);
+            showToast(res.data.message || 'Product deleted successfully!', 'success');
             fetchData();
-        } catch (e) {}
+        } catch (e) {
+            showToast(e.response?.data?.message || 'Failed to delete product', 'error');
+        }
     };
 
     const handleDeleteImage = async (imageId) => {
         if (!canDelete) return;
         if (!window.confirm('Delete this image?')) return;
         try {
-            await api.delete(`/product-images/${imageId}`);
+            const res = await api.delete(`/product-images/${imageId}`);
+            showToast(res.data.message || 'Image deleted successfully!', 'success');
             fetchData();
-        } catch (e) {}
+        } catch (e) {
+            showToast(e.response?.data?.message || 'Failed to delete image', 'error');
+        }
     };
 
     const cancelEdit = () => {
@@ -274,7 +284,7 @@ export default function Products() {
                                             {product.images?.map((img) => (
                                                 <div key={img.id} className="relative group">
                                                     <img
-                                                        src={`http://localhost:8000/storage/${img.image}`}
+                                                        src={`http://localhost:8000/${img.image}`}
                                                         alt=""
                                                         className="w-12 h-12 object-cover rounded-lg border border-gray-200"
                                                     />

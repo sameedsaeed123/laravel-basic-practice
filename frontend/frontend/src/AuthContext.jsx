@@ -1,26 +1,58 @@
-import { createContext, useContext, useState } from 'react';
+import { createContext, useContext, useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import api from './api';
+import { useToast } from './ToastContext';
 
 const AuthContext = createContext();
 
 export function AuthProvider({ children }) {
     const [user, setUser] = useState(JSON.parse(localStorage.getItem('user')));
     const [token, setToken] = useState(localStorage.getItem('token'));
-    const [permissions, setPermissions] = useState(
-        JSON.parse(localStorage.getItem('permissions') || '[]')
-    );
+    const [permissions, setPermissions] = useState([]);
+    const [permissionsLoaded, setPermissionsLoaded] = useState(false);
     const navigate = useNavigate();
+    const { showToast } = useToast();
+
+    const clearAuth = useCallback(() => {
+        localStorage.removeItem('token');
+        localStorage.removeItem('user');
+        setToken(null);
+        setUser(null);
+        setPermissions([]);
+    }, []);
+
+    const fetchPermissions = useCallback(async () => {
+        if (!localStorage.getItem('token')) {
+            clearAuth();
+            setPermissionsLoaded(true);
+            return;
+        }
+        try {
+            const res = await api.get('/user');
+            const { user: userData, permissions: perms } = res.data.data;
+            localStorage.setItem('user', JSON.stringify(userData));
+            setUser(userData);
+            setPermissions(perms || []);
+        } catch (e) {
+            clearAuth();
+        }
+        setPermissionsLoaded(true);
+    }, [clearAuth]);
+
+    useEffect(() => {
+        fetchPermissions();
+    }, [fetchPermissions]);
 
     const login = async (email, password) => {
         const res = await api.post('/login', { email, password });
         const { user: userData, token: authToken, permissions: perms } = res.data.data;
         localStorage.setItem('token', authToken);
         localStorage.setItem('user', JSON.stringify(userData));
-        localStorage.setItem('permissions', JSON.stringify(perms || []));
         setToken(authToken);
         setUser(userData);
         setPermissions(perms || []);
+        setPermissionsLoaded(true);
+        showToast(res.data.message || 'Login successful!', 'success');
 
         const hasAdminAccess =
             userData.role === 'admin' ||
@@ -43,10 +75,11 @@ export function AuthProvider({ children }) {
         const { user: userData, token: authToken } = res.data.data;
         localStorage.setItem('token', authToken);
         localStorage.setItem('user', JSON.stringify(userData));
-        localStorage.setItem('permissions', JSON.stringify([]));
         setToken(authToken);
         setUser(userData);
         setPermissions([]);
+        setPermissionsLoaded(true);
+        showToast(res.data.message || 'Registered successfully!', 'success');
         navigate('/');
     };
 
@@ -56,22 +89,15 @@ export function AuthProvider({ children }) {
         } catch (e) {}
         localStorage.removeItem('token');
         localStorage.removeItem('user');
-        localStorage.removeItem('permissions');
         setToken(null);
         setUser(null);
         setPermissions([]);
+        setPermissionsLoaded(true);
         navigate('/');
     };
 
     const refreshUser = async () => {
-        try {
-            const res = await api.get('/user');
-            const { user: userData, permissions: perms } = res.data.data;
-            localStorage.setItem('user', JSON.stringify(userData));
-            localStorage.setItem('permissions', JSON.stringify(perms || []));
-            setUser(userData);
-            setPermissions(perms || []);
-        } catch (e) {}
+        await fetchPermissions();
     };
 
     const hasPermission = (permissionName) => {
@@ -92,6 +118,7 @@ export function AuthProvider({ children }) {
                 user,
                 token,
                 permissions,
+                permissionsLoaded,
                 login,
                 register,
                 logout,

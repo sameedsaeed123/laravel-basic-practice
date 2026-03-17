@@ -19,14 +19,16 @@ import Checkout from './pages/Checkout';
 import CheckoutSuccess from './pages/CheckoutSuccess';
 
 function AdminRoute({ children }) {
-    const { token, isAdmin } = useAuth();
+    const { token, isAdmin, permissionsLoaded } = useAuth();
+    if (!permissionsLoaded) return null;
     if (!token) return <Navigate to="/login" />;
     if (!isAdmin) return <Navigate to="/" />;
     return children;
 }
 
 function GuestRoute({ children }) {
-    const { token, isAdmin } = useAuth();
+    const { token, isAdmin, permissionsLoaded } = useAuth();
+    if (!permissionsLoaded) return null;
     if (token && isAdmin) return <Navigate to="/admin" />;
     if (token) return <Navigate to="/" />;
     return children;

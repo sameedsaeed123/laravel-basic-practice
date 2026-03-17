@@ -3,10 +3,12 @@ import { useSearchParams, Link } from 'react-router-dom';
 import axios from 'axios';
 import api from '../api';
 import Toast from '../components/Toast';
+import { useToast } from '../ToastContext';
 
 const API_BASE = 'http://localhost:8000';
 
 export default function Checkout() {
+    const { showToast } = useToast();
     const [searchParams] = useSearchParams();
     const productId = searchParams.get('product_id');
     const [product, setProduct] = useState(null);
@@ -40,7 +42,11 @@ export default function Checkout() {
     }, [productId]);
 
     const subtotal = product ? Number(product.price) * quantity : 0;
-    const discount = couponResult ? couponResult.discount_amount * quantity : 0;
+    const discount = couponResult
+        ? couponResult.discount_type === 'percent_off'
+            ? couponResult.discount_amount * quantity
+            : couponResult.discount_amount
+        : 0;
     const total = Math.max(0, subtotal - discount);
 
     const handleApplyCoupon = async () => {
@@ -54,9 +60,12 @@ export default function Checkout() {
                 amount: Number(product.price),
             });
             setCouponResult(res.data.data);
+            showToast(res.data.message || 'Coupon applied successfully!', 'success');
         } catch (err) {
-            setCouponError(err.response?.data?.message || 'Invalid coupon');
+            const message = err.response?.data?.message || 'Invalid coupon code.';
+            setCouponError(message);
             setCouponResult(null);
+            showToast(message, 'error');
         }
         setCouponLoading(false);
     };
@@ -93,7 +102,7 @@ export default function Checkout() {
 
     const getImageUrl = (prod) => {
         if (prod?.images?.length > 0) {
-            return `${API_BASE}/storage/${prod.images[0].image}`;
+            return `${API_BASE}/${prod.images[0].image}`;
         }
         return null;
     };
@@ -214,9 +223,9 @@ export default function Checkout() {
                                             </span>
                                             <p className="text-sm text-green-600 mt-1">
                                                 {couponResult.discount_type === 'percent_off'
-                                                    ? `${couponResult.discount_value}% off`
-                                                    : `$${Number(couponResult.discount_value).toFixed(2)} off`}
-                                                {' '}— You save ${Number(couponResult.discount_amount).toFixed(2)} per item
+                                                    ? `${couponResult.discount_value}% off per item`
+                                                    : `$${Number(couponResult.discount_value).toFixed(2)} off total`}
+                                                {' '}— You save ${Number(discount).toFixed(2)}
                                             </p>
                                         </div>
                                         <button
@@ -247,7 +256,12 @@ export default function Checkout() {
                                         </button>
                                     </div>
                                     {couponError && (
-                                        <p className="text-red-500 text-sm mt-2">{couponError}</p>
+                                        <div className="mt-2 flex items-start gap-2 bg-red-50 border border-red-200 rounded-lg p-3">
+                                            <svg className="w-4 h-4 text-red-500 mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                            </svg>
+                                            <p className="text-red-700 text-sm font-medium">{couponError}</p>
+                                        </div>
                                     )}
                                 </>
                             )}

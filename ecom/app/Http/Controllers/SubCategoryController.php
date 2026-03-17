@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\SubCategory;
 use App\Traits\ApiResponse;
+use Illuminate\Database\Eloquent\ModelNotFoundException;
 use Illuminate\Http\Request;
 
 class SubCategoryController extends Controller
@@ -12,8 +13,12 @@ class SubCategoryController extends Controller
 
     public function index()
     {
-        $subCategories = SubCategory::with('category')->get();
-        return $this->success($subCategories, 'Sub-categories retrieved successfully.');
+        try {
+            $subCategories = SubCategory::with('category')->get();
+            return $this->success($subCategories, 'Sub-categories retrieved successfully.');
+        } catch (\Throwable $e) {
+            return $this->error('Failed to retrieve sub-categories.', 500);
+        }
     }
 
     public function store(Request $request)
@@ -27,19 +32,29 @@ class SubCategoryController extends Controller
             'category_id.exists' => 'Selected category does not exist.',
         ]);
 
-        $subCategory = SubCategory::create($request->only('name', 'category_id'));
+        try {
+            $subCategory = SubCategory::create($request->only('name', 'category_id'));
 
-        return $this->success(
-            $subCategory->load('category'),
-            'Sub-category created successfully.',
-            201
-        );
+            return $this->success(
+                $subCategory->load('category'),
+                'Sub-category created successfully.',
+                201
+            );
+        } catch (\Throwable $e) {
+            return $this->error('Failed to create sub-category.', 500);
+        }
     }
 
     public function show($id)
     {
-        $subCategory = SubCategory::with('category')->findOrFail($id);
-        return $this->success($subCategory, 'Sub-category retrieved successfully.');
+        try {
+            $subCategory = SubCategory::with('category')->findOrFail($id);
+            return $this->success($subCategory, 'Sub-category retrieved successfully.');
+        } catch (ModelNotFoundException $e) {
+            return $this->error('Sub-category not found.', 404);
+        } catch (\Throwable $e) {
+            return $this->error('Failed to retrieve sub-category.', 500);
+        }
     }
 
     public function update(Request $request, $id)
@@ -53,20 +68,32 @@ class SubCategoryController extends Controller
             'category_id.exists' => 'Selected category does not exist.',
         ]);
 
-        $subCategory = SubCategory::findOrFail($id);
-        $subCategory->update($request->only('name', 'category_id'));
+        try {
+            $subCategory = SubCategory::findOrFail($id);
+            $subCategory->update($request->only('name', 'category_id'));
 
-        return $this->success(
-            $subCategory->load('category'),
-            'Sub-category updated successfully.'
-        );
+            return $this->success(
+                $subCategory->load('category'),
+                'Sub-category updated successfully.'
+            );
+        } catch (ModelNotFoundException $e) {
+            return $this->error('Sub-category not found.', 404);
+        } catch (\Throwable $e) {
+            return $this->error('Failed to update sub-category.', 500);
+        }
     }
 
     public function destroy($id)
     {
-        $subCategory = SubCategory::findOrFail($id);
-        $subCategory->delete();
+        try {
+            $subCategory = SubCategory::findOrFail($id);
+            $subCategory->delete();
 
-        return $this->success(null, 'Sub-category deleted successfully.');
+            return $this->success(null, 'Sub-category deleted successfully.');
+        } catch (ModelNotFoundException $e) {
+            return $this->error('Sub-category not found.', 404);
+        } catch (\Throwable $e) {
+            return $this->error('Failed to delete sub-category.', 500);
+        }
     }
 }

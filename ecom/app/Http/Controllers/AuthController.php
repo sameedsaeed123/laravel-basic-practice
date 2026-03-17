@@ -6,6 +6,7 @@ use App\Models\User;
 use App\Traits\ApiResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Password;
 
 class AuthController extends Controller
@@ -20,19 +21,24 @@ class AuthController extends Controller
             'password' => 'required|string|min:6|confirmed',
         ]);
 
-        $user = User::create([
-            'name' => $request->name,
-            'email' => $request->email,
-            'password' => Hash::make($request->password),
-            'role' => 'user',
-        ]);
+        try {
+            $user = User::create([
+                'name' => $request->name,
+                'email' => $request->email,
+                'password' => Hash::make($request->password),
+                'role' => 'user',
+            ]);
 
-        $token = $user->createToken('auth_token')->plainTextToken;
+            $token = $user->createToken('auth_token')->plainTextToken;
 
-        return $this->success([
-            'user' => $user,
-            'token' => $token,
-        ], 'User registered successfully.', 201);
+            return $this->success([
+                'user' => $user,
+                'token' => $token,
+            ], 'User registered successfully.', 201);
+        } catch (\Throwable $e) {
+            Log::error('Registration failed: ' . $e->getMessage());
+            return $this->error('Registration failed. Please try again.', 500);
+        }
     }
 
     public function login(Request $request)
@@ -42,22 +48,27 @@ class AuthController extends Controller
             'password' => 'required|string',
         ]);
 
-        $user = User::where('email', $request->email)->first();
+        try {
+            $user = User::where('email', $request->email)->first();
 
-        if (!$user || !Hash::check($request->password, $user->password)) {
-            return $this->error('Invalid credentials.', 401);
+            if (!$user || !Hash::check($request->password, $user->password)) {
+                return $this->error('Invalid credentials.', 401);
+            }
+
+            $token = $user->createToken('auth_token')->plainTextToken;
+
+            $user->load('roles.permissions');
+            $permissions = $user->getAllPermissions()->pluck('name');
+
+            return $this->success([
+                'user' => $user,
+                'token' => $token,
+                'permissions' => $permissions,
+            ], 'Login successful.');
+        } catch (\Throwable $e) {
+            Log::error('Login failed: ' . $e->getMessage());
+            return $this->error('Login failed. Please try again.', 500);
         }
-
-        $token = $user->createToken('auth_token')->plainTextToken;
-
-        $user->load('roles.permissions');
-        $permissions = $user->getAllPermissions()->pluck('name');
-
-        return $this->success([
-            'user' => $user,
-            'token' => $token,
-            'permissions' => $permissions,
-        ], 'Login successful.');
     }
 
     public function forgotPassword(Request $request)
@@ -66,13 +77,18 @@ class AuthController extends Controller
             'email' => 'required|email|exists:users,email',
         ]);
 
-        $status = Password::sendResetLink($request->only('email'));
+        try {
+            $status = Password::sendResetLink($request->only('email'));
 
-        if ($status === Password::RESET_LINK_SENT) {
-            return $this->success(null, 'Password reset link sent to your email.');
+            if ($status === Password::RESET_LINK_SENT) {
+                return $this->success(null, 'Password reset link sent to your email.');
+            }
+
+            return $this->error(__($status), 400);
+        } catch (\Throwable $e) {
+            Log::error('Forgot password failed: ' . $e->getMessage());
+            return $this->error('Failed to send reset link. Please try again.', 500);
         }
-
-        return $this->error(__($status), 400);
     }
 
     public function resetPassword(Request $request)
@@ -83,35 +99,47 @@ class AuthController extends Controller
             'token' => 'required',
         ]);
 
-        $status = Password::reset(
-            $request->only('email', 'password', 'password_confirmation', 'token'),
-            function ($user, $password) {
-                $user->password = Hash::make($password);
-                $user->save();
-            }
-        );
+        try {
+            $status = Password::reset(
+                $request->only('email', 'password', 'password_confirmation', 'token'),
+                function ($user, $password) {
+                    $user->password = Hash::make($password);
+                    $user->save();
+                }
+            );
 
-        return $status === Password::PASSWORD_RESET
-            ? $this->success(null, 'Password has been reset successfully.')
-            : $this->error('Failed to reset password.', 500);
+            return $status === Password::PASSWORD_RESET
+                ? $this->success(null, 'Password has been reset successfully.')
+                : $this->error('Failed to reset password.', 400);
+        } catch (\Throwable $e) {
+            Log::error('Password reset failed: ' . $e->getMessage());
+            return $this->error('Failed to reset password. Please try again.', 500);
+        }
     }
 
     public function logout(Request $request)
     {
-        $request->user()->currentAccessToken()->delete();
-
-        return $this->success(null, 'Logged out successfully.');
+        try {
+            $request->user()->currentAccessToken()->delete();
+            return $this->success(null, 'Logged out successfully.');
+        } catch (\Throwable $e) {
+            return $this->error('Failed to logout.', 500);
+        }
     }
 
     public function user(Request $request)
     {
-        $user = $request->user();
-        $user->load('roles.permissions');
-        $permissions = $user->getAllPermissions()->pluck('name');
+        try {
+            $user = $request->user();
+            $user->load('roles.permissions');
+            $permissions = $user->getAllPermissions()->pluck('name');
 
-        return $this->success([
-            'user' => $user,
-            'permissions' => $permissions,
-        ], 'User retrieved successfully.');
+            return $this->success([
+                'user' => $user,
+                'permissions' => $permissions,
+            ], 'User retrieved successfully.');
+        } catch (\Throwable $e) {
+            return $this->error('Failed to retrieve user.', 500);
+        }
     }
 }

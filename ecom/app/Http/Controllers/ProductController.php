@@ -5,8 +5,10 @@ namespace App\Http\Controllers;
 use App\Models\Product;
 use App\Models\ProductImage;
 use App\Traits\ApiResponse;
+use Illuminate\Database\Eloquent\ModelNotFoundException;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Facades\File;
+use Illuminate\Support\Facades\Log;
 use Stripe\Price;
 use Stripe\Product as StripeProduct;
 use Stripe\Stripe;
@@ -17,8 +19,12 @@ class ProductController extends Controller
 
     public function index()
     {
-        $products = Product::with(['category', 'subCategory', 'images'])->get();
-        return $this->success($products, 'Products retrieved successfully.');
+        try {
+            $products = Product::with(['category', 'subCategory', 'images'])->get();
+            return $this->success($products, 'Products retrieved successfully.');
+        } catch (\Throwable $e) {
+            return $this->error('Failed to retrieve products.', 500);
+        }
     }
 
     public function store(Request $request)
@@ -42,31 +48,44 @@ class ProductController extends Controller
             'images.*.max' => 'Each image may not exceed 2MB.',
         ]);
 
-        $product = Product::create($request->only('title', 'price', 'category_id', 'sub_category_id'));
+        try {
+            $product = Product::create($request->only('title', 'price', 'category_id', 'sub_category_id'));
 
-        $this->syncProductToStripe($product);
+            $this->syncProductToStripe($product);
 
-        if ($request->hasFile('images')) {
-            foreach ($request->file('images') as $image) {
-                $path = $image->store('products', 'public');
-                ProductImage::create([
-                    'product_id' => $product->id,
-                    'image' => $path,
-                ]);
+            if ($request->hasFile('images')) {
+                File::ensureDirectoryExists(public_path('products'));
+                foreach ($request->file('images') as $image) {
+                    $filename = uniqid() . '_' . $image->getClientOriginalName();
+                    $image->move(public_path('products'), $filename);
+                    ProductImage::create([
+                        'product_id' => $product->id,
+                        'image' => 'products/' . $filename,
+                    ]);
+                }
             }
-        }
 
-        return $this->success(
-            $product->load(['category', 'subCategory', 'images']),
-            'Product created successfully.',
-            201
-        );
+            return $this->success(
+                $product->load(['category', 'subCategory', 'images']),
+                'Product created successfully.',
+                201
+            );
+        } catch (\Throwable $e) {
+            Log::error('Product creation failed: ' . $e->getMessage());
+            return $this->error('Failed to create product: ' . $e->getMessage(), 500);
+        }
     }
 
     public function show($id)
     {
-        $product = Product::with(['category', 'subCategory', 'images'])->findOrFail($id);
-        return $this->success($product, 'Product retrieved successfully.');
+        try {
+            $product = Product::with(['category', 'subCategory', 'images'])->findOrFail($id);
+            return $this->success($product, 'Product retrieved successfully.');
+        } catch (ModelNotFoundException $e) {
+            return $this->error('Product not found.', 404);
+        } catch (\Throwable $e) {
+            return $this->error('Failed to retrieve product.', 500);
+        }
     }
 
     public function update(Request $request, $id)
@@ -90,51 +109,82 @@ class ProductController extends Controller
             'images.*.max' => 'Each image may not exceed 2MB.',
         ]);
 
-        $product = Product::findOrFail($id);
-        $product->update($request->only('title', 'price', 'category_id', 'sub_category_id'));
+        try {
+            $product = Product::findOrFail($id);
+            $product->update($request->only('title', 'price', 'category_id', 'sub_category_id'));
 
-        $this->syncProductToStripe($product);
+            $this->syncProductToStripe($product);
 
-        if ($request->hasFile('images')) {
-            foreach ($product->images as $img) {
-                Storage::disk('public')->delete($img->image);
-                $img->delete();
+            if ($request->hasFile('images')) {
+                foreach ($product->images as $img) {
+                    $fullPath = public_path($img->image);
+                    if (File::exists($fullPath)) {
+                        File::delete($fullPath);
+                    }
+                    $img->delete();
+                }
+                File::ensureDirectoryExists(public_path('products'));
+                foreach ($request->file('images') as $image) {
+                    $filename = uniqid() . '_' . $image->getClientOriginalName();
+                    $image->move(public_path('products'), $filename);
+                    ProductImage::create([
+                        'product_id' => $product->id,
+                        'image' => 'products/' . $filename,
+                    ]);
+                }
             }
-            foreach ($request->file('images') as $image) {
-                $path = $image->store('products', 'public');
-                ProductImage::create([
-                    'product_id' => $product->id,
-                    'image' => $path,
-                ]);
-            }
+
+            return $this->success(
+                $product->load(['category', 'subCategory', 'images']),
+                'Product updated successfully.'
+            );
+        } catch (ModelNotFoundException $e) {
+            return $this->error('Product not found.', 404);
+        } catch (\Throwable $e) {
+            Log::error('Product update failed: ' . $e->getMessage());
+            return $this->error('Failed to update product: ' . $e->getMessage(), 500);
         }
-
-        return $this->success(
-            $product->load(['category', 'subCategory', 'images']),
-            'Product updated successfully.'
-        );
     }
 
     public function destroy($id)
     {
-        $product = Product::findOrFail($id);
-        foreach ($product->images as $img) {
-            Storage::disk('public')->delete($img->image);
-            $img->delete();
+        try {
+            $product = Product::findOrFail($id);
+            foreach ($product->images as $img) {
+                $fullPath = public_path($img->image);
+                if (File::exists($fullPath)) {
+                    File::delete($fullPath);
+                }
+                $img->delete();
+            }
+
+            $product->delete();
+
+            return $this->success(null, 'Product deleted successfully.');
+        } catch (ModelNotFoundException $e) {
+            return $this->error('Product not found.', 404);
+        } catch (\Throwable $e) {
+            Log::error('Product deletion failed: ' . $e->getMessage());
+            return $this->error('Failed to delete product.', 500);
         }
-
-        $product->delete();
-
-        return $this->success(null, 'Product deleted successfully.');
     }
 
     public function deleteImage($id)
     {
-        $image = ProductImage::findOrFail($id);
-        Storage::disk('public')->delete($image->image);
-        $image->delete();
+        try {
+            $image = ProductImage::findOrFail($id);
+            $fullPath = public_path($image->image);
+            if (File::exists($fullPath)) {
+                File::delete($fullPath);
+            }
+            $image->delete();
 
-        return $this->success(null, 'Image deleted successfully.');
+            return $this->success(null, 'Image deleted successfully.');
+        } catch (ModelNotFoundException $e) {
+            return $this->error('Image not found.', 404);
+        } catch (\Throwable $e) {
+            return $this->error('Failed to delete image.', 500);
+        }
     }
 
     private function syncProductToStripe(Product $product): void
