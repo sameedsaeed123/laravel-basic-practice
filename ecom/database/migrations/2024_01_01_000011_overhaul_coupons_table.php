@@ -18,10 +18,10 @@ return new class extends Migration
         });
 
         Schema::table('coupons', function (Blueprint $table) {
-            $table->string('discount_type')->default('percent_off')->after('code'); // percent_off or amount_off
-            $table->decimal('discount_value', 10, 2)->default(0)->after('discount_type'); // percentage (0-100) or amount in dollars
-            $table->string('duration')->default('once')->after('discount_value'); // once, repeating, forever
-            $table->unsignedInteger('duration_in_months')->nullable()->after('duration'); // only when duration=repeating
+            $table->string('discount_type')->default('percent_off')->after('code'); 
+            $table->decimal('discount_value', 10, 2)->default(0)->after('discount_type'); 
+            $table->string('duration')->default('once')->after('discount_value');
+            $table->unsignedInteger('duration_in_months')->nullable()->after('duration'); 
             $table->unsignedInteger('max_redemptions')->nullable()->after('duration_in_months');
             $table->unsignedInteger('times_redeemed')->default(0)->after('max_redemptions');
             $table->boolean('is_active')->default(true)->after('times_redeemed');
