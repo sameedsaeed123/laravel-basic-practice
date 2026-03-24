@@ -32,6 +32,10 @@ class ProductController extends Controller
         $request->validate([
             'title' => 'required|string|max:255',
             'price' => 'required|numeric|min:0',
+            'colors' => 'nullable|array',
+            'colors.*' => 'string|max:100',
+            'sizes' => 'nullable|array',
+            'sizes.*' => 'string|max:100',
             'category_id' => 'required|exists:categories,id',
             'sub_category_id' => 'nullable|exists:sub_categories,id',
             'images.*' => 'image|mimes:jpeg,png,jpg,gif|max:2048',
@@ -46,10 +50,11 @@ class ProductController extends Controller
             'images.*.image' => 'Each file must be an image.',
             'images.*.mimes' => 'Images must be jpeg, png, jpg, or gif.',
             'images.*.max' => 'Each image may not exceed 2MB.',
+            
         ]);
 
         try {
-            $product = Product::create($request->only('title', 'price', 'category_id', 'sub_category_id'));
+            $product = Product::create($request->only('title', 'price', 'colors', 'sizes', 'category_id', 'sub_category_id'));
 
             $this->syncProductToStripe($product);
 
@@ -93,6 +98,10 @@ class ProductController extends Controller
         $request->validate([
             'title' => 'required|string|max:255',
             'price' => 'required|numeric|min:0',
+            'colors' => 'nullable|array',
+            'colors.*' => 'string|max:100',
+            'sizes' => 'nullable|array',
+            'sizes.*' => 'string|max:100',
             'category_id' => 'required|exists:categories,id',
             'sub_category_id' => 'nullable|exists:sub_categories,id',
             'images.*' => 'image|mimes:jpeg,png,jpg,gif|max:2048',
@@ -111,7 +120,7 @@ class ProductController extends Controller
 
         try {
             $product = Product::findOrFail($id);
-            $product->update($request->only('title', 'price', 'category_id', 'sub_category_id'));
+            $product->update($request->only('title', 'price', 'colors', 'sizes', 'category_id', 'sub_category_id'));
 
             $this->syncProductToStripe($product);
 

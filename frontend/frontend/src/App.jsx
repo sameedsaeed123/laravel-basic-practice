@@ -9,6 +9,8 @@ import Dashboard from './pages/Dashboard';
 import Categories from './pages/Categories';
 import SubCategories from './pages/SubCategories';
 import Products from './pages/Products';
+import Colors from './pages/Colors';
+import Sizes from './pages/Sizes';
 import Orders from './pages/Orders';
 import Coupons from './pages/Coupons';
 import Roles from './pages/Roles';
@@ -49,6 +51,8 @@ function App() {
                 <Route path="categories" element={<Categories />} />
                 <Route path="sub-categories" element={<SubCategories />} />
                 <Route path="products" element={<Products />} />
+                <Route path="colors" element={<Colors />} />
+                <Route path="sizes" element={<Sizes />} />
                 <Route path="orders" element={<Orders />} />
                 <Route path="coupons" element={<Coupons />} />
                 <Route path="roles" element={<Roles />} />

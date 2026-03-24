@@ -36,6 +36,8 @@ class StripeController extends Controller
             'product_id' => 'required|integer|exists:products,id',
             'quantity' => 'sometimes|integer|min:1|max:100',
             'coupon_code' => 'nullable|string|max:255',
+            'selected_color' => 'nullable|string|max:100',
+            'selected_size' => 'nullable|string|max:100',
         ]);
 
         if ($validator->fails()) {
@@ -73,10 +75,12 @@ class StripeController extends Controller
             'mode' => 'payment',
             'success_url' => $successUrl,
             'cancel_url' => $cancelUrl,
-            'metadata' => [
+            'metadata' => array_filter([
                 'product_id' => (string) $product->id,
                 'quantity' => (string) $quantity,
-            ],
+                'selected_color' => $request->input('selected_color'),
+                'selected_size' => $request->input('selected_size'),
+            ]),
         ];
         if ($request->coupon_code) {
             $coupon = Coupon::where('code', strtoupper($request->coupon_code))->first();

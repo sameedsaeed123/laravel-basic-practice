@@ -11,11 +11,11 @@ class AdminUserSeeder extends Seeder
 {
     public function run(): void
     {
-        $user = User::firstOrCreate(
-            ['email' => 'admin@admin.com'],
+        $user = User::updateOrCreate(
+            ['email' => 'admin@test.com'],
             [
                 'name' => 'Admin',
-                'password' => Hash::make('password'),
+                'password' => Hash::make('admin123'),
                 'role' => 'admin',
             ]
         );
@@ -23,6 +23,6 @@ class AdminUserSeeder extends Seeder
         $adminRole = Role::firstOrCreate(['name' => 'admin']);
         $user->roles()->syncWithoutDetaching([$adminRole->id]);
 
-        $this->command->info("Admin user ready: admin@admin.com / password");
+        $this->command->info("Admin user ready: admin@test.com / admin123");
     }
 }

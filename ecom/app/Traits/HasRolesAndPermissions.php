@@ -40,9 +40,6 @@ trait HasRolesAndPermissions
         return $this->roles->whereIn('name', $roleNames)->isNotEmpty();
     }
 
-    /**
-     * Collects all permissions from all assigned roles.
-     */
     public function getAllPermissions(): \Illuminate\Support\Collection
     {
         return $this->roles->flatMap(fn ($role) => $role->permissions)->unique('id');

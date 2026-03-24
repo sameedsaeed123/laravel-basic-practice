@@ -2,11 +2,13 @@
 
 use App\Http\Controllers\AuthController;
 use App\Http\Controllers\CategoryController;
+use App\Http\Controllers\ColorController;
 use App\Http\Controllers\CouponController;
 use App\Http\Controllers\OrderController;
 use App\Http\Controllers\PermissionController;
 use App\Http\Controllers\ProductController;
 use App\Http\Controllers\RoleController;
+use App\Http\Controllers\SizeController;
 use App\Http\Controllers\StripeController;
 use App\Http\Controllers\SubCategoryController;
 use App\Http\Controllers\UserController;
@@ -54,16 +56,24 @@ Route::middleware(['auth:sanctum', 'admin'])->group(function () {
     Route::middleware('permission:view-products')->group(function () {
         Route::get('/products', [ProductController::class, 'index']);
         Route::get('/products/{id}', [ProductController::class, 'show']);
+        Route::get('/colors', [ColorController::class, 'index']);
+        Route::get('/sizes', [SizeController::class, 'index']);
     });
     Route::middleware('permission:create-products')->group(function () {
         Route::post('/products', [ProductController::class, 'store']);
+        Route::post('/colors', [ColorController::class, 'store']);
+        Route::post('/sizes', [SizeController::class, 'store']);
     });
     Route::middleware('permission:edit-products')->group(function () {
         Route::put('/products/{id}', [ProductController::class, 'update']);
+        Route::put('/colors/{id}', [ColorController::class, 'update']);
+        Route::put('/sizes/{id}', [SizeController::class, 'update']);
     });
     Route::middleware('permission:delete-products')->group(function () {
         Route::delete('/products/{id}', [ProductController::class, 'destroy']);
         Route::delete('/product-images/{id}', [ProductController::class, 'deleteImage']);
+        Route::delete('/colors/{id}', [ColorController::class, 'destroy']);
+        Route::delete('/sizes/{id}', [SizeController::class, 'destroy']);
     });
 
     Route::middleware('permission:view-orders')->group(function () {

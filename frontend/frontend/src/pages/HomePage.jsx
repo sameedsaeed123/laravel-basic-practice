@@ -261,6 +261,22 @@ export default function HomePage() {
                                                 {product.sub_category.name}
                                             </p>
                                         )}
+                                        {product.colors && product.colors.length > 0 && (
+                                            <div className="mt-2 flex flex-wrap gap-1">
+                                                {product.colors.map((c) => (
+                                                    <span key={c} className="w-4 h-4 rounded-full border border-gray-300 inline-block" style={{ backgroundColor: c.toLowerCase() }} title={c} />
+                                                ))}
+                                            </div>
+                                        )}
+                                        {product.sizes && product.sizes.length > 0 && (
+                                            <div className="mt-1.5 flex flex-wrap gap-1">
+                                                {product.sizes.map((s) => (
+                                                    <span key={s} className="text-[10px] font-medium text-gray-500 bg-gray-100 px-1.5 py-0.5 rounded">
+                                                        {s}
+                                                    </span>
+                                                ))}
+                                            </div>
+                                        )}
                                         <div className="mt-auto pt-4">
                                             <span className="text-2xl font-bold text-indigo-600">
                                                 ${Number(product.price).toFixed(2)}

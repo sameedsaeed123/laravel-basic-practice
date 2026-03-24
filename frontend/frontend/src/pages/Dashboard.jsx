@@ -10,6 +10,8 @@ export default function Dashboard() {
         products: null,
         orders: null,
         coupons: null,
+        users: null,
+        roles: null,
     });
 
     useEffect(() => {
@@ -31,14 +33,14 @@ export default function Dashboard() {
                         .catch(() => {})
                 );
             }
-            if (hasPermission('view-products')) {
+            if (hasPermission('view-products') || hasPermission('create-products') || hasPermission('edit-products') || hasPermission('delete-products')) {
                 fetches.push(
                     api.get('/products')
                         .then(res => { results.products = res.data.data.length; })
                         .catch(() => {})
                 );
             }
-            if (hasPermission('view-orders')) {
+            if (hasPermission('view-orders') || hasPermission('manage-orders')) {
                 fetches.push(
                     api.get('/orders')
                         .then(res => { results.orders = res.data.data.length; })
@@ -49,6 +51,20 @@ export default function Dashboard() {
                 fetches.push(
                     api.get('/coupons')
                         .then(res => { results.coupons = res.data.data.length; })
+                        .catch(() => {})
+                );
+            }
+            if (hasPermission('manage-users')) {
+                fetches.push(
+                    api.get('/users')
+                        .then(res => { results.users = res.data.data.length; })
+                        .catch(() => {})
+                );
+            }
+            if (hasPermission('manage-roles')) {
+                fetches.push(
+                    api.get('/roles')
+                        .then(res => { results.roles = res.data.data.length; })
                         .catch(() => {})
                 );
             }
@@ -63,9 +79,11 @@ export default function Dashboard() {
     const allCards = [
         { label: 'Categories', count: stats.categories, color: 'bg-blue-500', permissions: ['view-categories', 'manage-categories'] },
         { label: 'Sub Categories', count: stats.subCategories, color: 'bg-green-500', permissions: ['view-sub-categories', 'manage-sub-categories'] },
-        { label: 'Products', count: stats.products, color: 'bg-purple-500', permissions: ['view-products'] },
-        { label: 'Orders', count: stats.orders, color: 'bg-orange-500', permissions: ['view-orders'] },
+        { label: 'Products', count: stats.products, color: 'bg-purple-500', permissions: ['view-products', 'create-products', 'edit-products', 'delete-products'] },
+        { label: 'Orders', count: stats.orders, color: 'bg-orange-500', permissions: ['view-orders', 'manage-orders'] },
         { label: 'Coupons', count: stats.coupons, color: 'bg-pink-500', permissions: ['manage-coupons'] },
+        { label: 'Users', count: stats.users, color: 'bg-teal-500', permissions: ['manage-users'] },
+        { label: 'Roles', count: stats.roles, color: 'bg-indigo-500', permissions: ['manage-roles'] },
     ];
 
     const cards = allCards.filter(card => card.permissions.some(p => hasPermission(p)));
