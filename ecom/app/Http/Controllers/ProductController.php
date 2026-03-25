@@ -128,6 +128,7 @@ class ProductController extends Controller
                 foreach ($product->images as $img) {
                     $fullPath = public_path($img->image);
                     if (File::exists($fullPath)) {
+                        
                         File::delete($fullPath);
                     }
                     $img->delete();

@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Mail\OrderConfirmation;
+use App\Models\Cart;
 use App\Models\Coupon;
 use App\Models\Order;
 use App\Models\OrderItem;
@@ -212,19 +213,41 @@ class StripeController extends Controller
                 'coupon_type' => $couponType,
             ]);
 
-            $productId = $metadata->product_id ?? null;
-            $quantity = (int) ($metadata->quantity ?? 1);
+            $isCartCheckout = !empty($metadata->source) && $metadata->source === 'cart' && !empty($metadata->cart_id);
 
-            if ($productId) {
-                $product = Product::find($productId);
-                if ($product) {
-                    $itemPrice = $quantity > 0 ? $amount / $quantity : $amount;
-                    OrderItem::create([
-                        'order_id' => $order->id,
-                        'product_id' => $product->id,
-                        'quantity' => $quantity,
-                        'price' => round($itemPrice, 2),
-                    ]);
+            if ($isCartCheckout) {
+                $cart = Cart::with('items.product')->find($metadata->cart_id);
+
+                if ($cart) {
+                    foreach ($cart->items as $cartItem) {
+                        if ($cartItem->product) {
+                            OrderItem::create([
+                                'order_id' => $order->id,
+                                'product_id' => $cartItem->product_id,
+                                'quantity' => $cartItem->quantity,
+                                'price' => $cartItem->product->price,
+                            ]);
+                        }
+                    }
+
+                    $cart->items()->delete();
+                    $cart->update(['coupon_id' => null]);
+                }
+            } else {
+                $productId = $metadata->product_id ?? null;
+                $quantity = (int) ($metadata->quantity ?? 1);
+
+                if ($productId) {
+                    $product = Product::find($productId);
+                    if ($product) {
+                        $itemPrice = $quantity > 0 ? $amount / $quantity : $amount;
+                        OrderItem::create([
+                            'order_id' => $order->id,
+                            'product_id' => $product->id,
+                            'quantity' => $quantity,
+                            'price' => round($itemPrice, 2),
+                        ]);
+                    }
                 }
             }
 
@@ -275,6 +298,106 @@ class StripeController extends Controller
             'currency' => 'usd',
         ]);
         $product->update(['stripe_price_id' => $stripePrice->id]);
+    }
+
+    public function cartCheckout(Request $request)
+    {
+        try {
+            $user = $request->user();
+            $cart = Cart::with(['items.product', 'coupon'])
+                ->where('user_id', $user->id)
+                ->first();
+
+            if (!$cart || $cart->items->isEmpty()) {
+                return response()->json([
+                    'status' => false,
+                    'message' => 'Your cart is empty. Add items before checkout.',
+                ], 422);
+            }
+
+            $missingSelections = [];
+            foreach ($cart->items as $item) {
+                $product = $item->product;
+                $needs = [];
+                if (!empty($product->colors) && !$item->selected_color) {
+                    $needs[] = 'color';
+                }
+                if (!empty($product->sizes) && !$item->selected_size) {
+                    $needs[] = 'size';
+                }
+                if (!empty($needs)) {
+                    $missingSelections[] = $product->title . ' (' . implode(' and ', $needs) . ')';
+                }
+            }
+
+            if (!empty($missingSelections)) {
+                return response()->json([
+                    'status' => false,
+                    'message' => 'Please select required options before checkout.',
+                    'errors' => ['missing_selections' => $missingSelections],
+                ], 422);
+            }
+
+            foreach ($cart->items as $item) {
+                $this->ensureProductHasStripePrice($item->product);
+                $item->product->refresh();
+
+                if (!$item->product->stripe_price_id) {
+                    return response()->json([
+                        'status' => false,
+                        'message' => "Product '{$item->product->title}' is not available for checkout at this time.",
+                    ], 422);
+                }
+            }
+
+            $lineItems = [];
+            foreach ($cart->items as $item) {
+                $lineItems[] = [
+                    'price' => $item->product->stripe_price_id,
+                    'quantity' => $item->quantity,
+                ];
+            }
+
+            $successUrl = url('/api/stripe/checkout-success') . '?session_id={CHECKOUT_SESSION_ID}';
+            $cancelUrl = url('/api/stripe/checkout-cancel');
+
+            $sessionParams = [
+                'payment_method_types' => ['card'],
+                'line_items' => $lineItems,
+                'mode' => 'payment',
+                'success_url' => $successUrl,
+                'cancel_url' => $cancelUrl,
+                'customer_email' => $user->email,
+                'metadata' => [
+                    'source' => 'cart',
+                    'cart_id' => (string) $cart->id,
+                    'user_id' => (string) $user->id,
+                ],
+            ];
+
+            if ($cart->coupon && $cart->coupon->isValid() && $cart->coupon->stripe_coupon_id) {
+                $sessionParams['discounts'] = [
+                    ['coupon' => $cart->coupon->stripe_coupon_id],
+                ];
+                $sessionParams['metadata']['coupon_id'] = (string) $cart->coupon->id;
+            } else {
+                $sessionParams['allow_promotion_codes'] = true;
+            }
+
+            $session = StripeSession::create($sessionParams);
+
+            return response()->json([
+                'status' => true,
+                'url' => $session->url,
+            ]);
+        } catch (\Throwable $e) {
+            Log::error('Stripe cart checkout failed: ' . $e->getMessage());
+
+            return response()->json([
+                'status' => false,
+                'message' => 'Failed to create checkout session. Please try again.',
+            ], 500);
+        }
     }
 
     public function cancel(Request $request)

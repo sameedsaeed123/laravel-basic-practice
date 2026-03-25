@@ -21,6 +21,20 @@ class OrderController extends Controller
         }
     }
 
+    public function myOrders(Request $request)
+    {
+        try {
+            $orders = Order::with('items.product')
+                ->where('user_id', $request->user()->id)
+                ->orderBy('id', 'desc')
+                ->get();
+
+            return $this->success($orders, 'Orders retrieved successfully.');
+        } catch (\Throwable $e) {
+            return $this->error('Failed to retrieve orders.', 500);
+        }
+    }
+
     public function show($id)
     {
         try {

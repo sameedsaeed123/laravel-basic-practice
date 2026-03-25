@@ -1,16 +1,26 @@
 import { useState, useEffect } from 'react';
-import { useSearchParams, Link } from 'react-router-dom';
+import { useSearchParams, Link, useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import api from '../api';
 import Toast from '../components/Toast';
 import { useToast } from '../ToastContext';
+import { useAuth } from '../AuthContext';
 
 const API_BASE = 'http://localhost:8000';
 
 export default function Checkout() {
     const { showToast } = useToast();
+    const { token } = useAuth();
+    const navigate = useNavigate();
     const [searchParams] = useSearchParams();
     const productId = searchParams.get('product_id');
+
+    useEffect(() => {
+        if (!token) {
+            showToast('Please sign up or log in to checkout.', 'error');
+            navigate('/register');
+        }
+    }, [token]);
     const [product, setProduct] = useState(null);
     const [quantity, setQuantity] = useState(1);
     const [selectedColor, setSelectedColor] = useState('');

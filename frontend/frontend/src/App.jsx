@@ -19,6 +19,7 @@ import Users from './pages/Users';
 import HomePage from './pages/HomePage';
 import Checkout from './pages/Checkout';
 import CheckoutSuccess from './pages/CheckoutSuccess';
+import CartPage from './pages/CartPage';
 
 function AdminRoute({ children }) {
     const { token, isAdmin, permissionsLoaded } = useAuth();
@@ -45,6 +46,7 @@ function App() {
             <Route path="/register" element={<GuestRoute><Register /></GuestRoute>} />
             <Route path="/forgot-password" element={<ForgotPassword />} />
             <Route path="/reset-password" element={<ResetPassword />} />
+            <Route path="/cart" element={<CartPage />} />
             <Route path="/checkout" element={<Checkout />} />
             <Route path="/admin" element={<AdminRoute><Layout /></AdminRoute>}>
                 <Route index element={<Dashboard />} />

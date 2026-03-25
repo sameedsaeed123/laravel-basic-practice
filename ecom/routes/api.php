@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\AuthController;
+use App\Http\Controllers\CartController;
 use App\Http\Controllers\CategoryController;
 use App\Http\Controllers\ColorController;
 use App\Http\Controllers\CouponController;
@@ -18,18 +19,31 @@ Route::post('/register', [AuthController::class, 'register']);
 Route::post('/forgot-password', [AuthController::class, 'forgotPassword']);
 Route::post('/reset-password', [AuthController::class, 'resetPassword']);
 Route::get('/public/products', [ProductController::class, 'index']);
+Route::get('/public/products/{id}', [ProductController::class, 'show']);
 
 Route::post('/validate-coupon', [CouponController::class, 'validate']);
 
 Route::get('/stripe/checkout-success', [StripeController::class, 'success']);
 Route::get('/stripe/checkout-cancel', [StripeController::class, 'cancel']);
 Route::post('/stripe/webhook', [StripeController::class, 'webhook']);
-Route::get('/stripe/checkout', [StripeController::class, 'checkout']);
-Route::post('/stripe/checkout-session', [StripeController::class, 'session']);
 
 Route::middleware('auth:sanctum')->group(function () {
     Route::post('/logout', [AuthController::class, 'logout']);
     Route::get('/user', [AuthController::class, 'user']);
+
+    Route::get('/stripe/checkout', [StripeController::class, 'checkout']);
+    Route::post('/stripe/checkout-session', [StripeController::class, 'session']);
+
+    Route::get('/cart', [CartController::class, 'index']);
+    Route::post('/cart/items', [CartController::class, 'addItem']);
+    Route::put('/cart/items/{id}', [CartController::class, 'updateItem']);
+    Route::delete('/cart/items/{id}', [CartController::class, 'removeItem']);
+    Route::delete('/cart', [CartController::class, 'clear']);
+    Route::post('/cart/coupon', [CartController::class, 'applyCoupon']);
+    Route::delete('/cart/coupon', [CartController::class, 'removeCoupon']);
+    Route::post('/cart/checkout', [StripeController::class, 'cartCheckout']);
+
+    Route::get('/orders/my', [OrderController::class, 'myOrders']);
 });
 Route::middleware(['auth:sanctum', 'admin'])->group(function () {
 

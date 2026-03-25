@@ -3,18 +3,27 @@ import { Link, useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import api from '../api';
 import { useAuth } from '../AuthContext';
+import { useToast } from '../ToastContext';
 
 const API_BASE = 'http://localhost:8000';
 
 export default function HomePage() {
     const { user, token, logout, isAdmin } = useAuth();
+    const { showToast } = useToast();
     const navigate = useNavigate();
     const [products, setProducts] = useState([]);
     const [loading, setLoading] = useState(true);
     const [searchTerm, setSearchTerm] = useState('');
     const [selectedCategory, setSelectedCategory] = useState('All');
     const [dropdownOpen, setDropdownOpen] = useState(false);
+    const [cartCount, setCartCount] = useState(0);
+    const [addingToCart, setAddingToCart] = useState(null);
+    const [cartModal, setCartModal] = useState(null);
+    const [modalColor, setModalColor] = useState('');
+    const [modalSize, setModalSize] = useState('');
+    const [modalQty, setModalQty] = useState(1);
     const dropdownRef = useRef(null);
+    const modalRef = useRef(null);
 
     useEffect(() => {
         axios.get(`${API_BASE}/api/public/products`)
@@ -22,6 +31,17 @@ export default function HomePage() {
             .catch(() => {})
             .finally(() => setLoading(false));
     }, []);
+
+    useEffect(() => {
+        if (token) {
+            api.get('/cart')
+                .then(res => {
+                    const cart = res.data.data;
+                    setCartCount(cart?.item_count || 0);
+                })
+                .catch(() => {});
+        }
+    }, [token]);
 
     useEffect(() => {
         const handleClick = (e) => {
@@ -49,7 +69,62 @@ export default function HomePage() {
     };
 
     const handleCheckout = (product) => {
+        if (!token) {
+            showToast('Please sign up or log in to checkout.', 'error');
+            navigate('/register');
+            return;
+        }
         navigate(`/checkout?product_id=${product.id}`);
+    };
+
+    const handleAddToCart = (product) => {
+        if (!token) {
+            showToast('Please sign up or log in to add items to cart.', 'error');
+            navigate('/register');
+            return;
+        }
+        const needsColor = product.colors?.length > 0;
+        const needsSize = product.sizes?.length > 0;
+        if (needsColor || needsSize) {
+            setCartModal(product);
+            setModalColor('');
+            setModalSize('');
+            setModalQty(1);
+        } else {
+            submitAddToCart(product.id, 1, null, null);
+        }
+    };
+
+    const submitAddToCart = async (productId, quantity, color, size) => {
+        setAddingToCart(productId);
+        try {
+            const payload = { product_id: productId, quantity };
+            if (color) payload.selected_color = color;
+            if (size) payload.selected_size = size;
+            const res = await api.post('/cart/items', payload);
+            const cart = res.data.data;
+            setCartCount(cart?.item_count || 0);
+            showToast('Added to cart!', 'success');
+            setCartModal(null);
+        } catch {
+            showToast('Failed to add to cart.', 'error');
+        }
+        setAddingToCart(null);
+    };
+
+    const handleModalConfirm = () => {
+        if (!cartModal) return;
+        const needsColor = cartModal.colors?.length > 0;
+        const needsSize = cartModal.sizes?.length > 0;
+        if (needsColor && !modalColor) {
+            showToast('Please select a color.', 'error');
+            return;
+        }
+        if (needsSize && !modalSize) {
+            showToast('Please select a size.', 'error');
+            return;
+        }
+        submitAddToCart(cartModal.id, modalQty, modalColor || null, modalSize || null);
     };
 
     return (
@@ -82,7 +157,18 @@ export default function HomePage() {
                             </div>
                         </div>
                         {token ? (
-                            <div className="relative" ref={dropdownRef}>
+                            <div className="flex items-center gap-3">
+                                <Link to="/cart" className="relative p-2 text-gray-600 hover:text-indigo-600 transition-colors">
+                                    <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 100 4 2 2 0 000-4z" />
+                                    </svg>
+                                    {cartCount > 0 && (
+                                        <span className="absolute -top-1 -right-1 bg-indigo-600 text-white text-[10px] font-bold w-5 h-5 rounded-full flex items-center justify-center">
+                                            {cartCount > 99 ? '99+' : cartCount}
+                                        </span>
+                                    )}
+                                </Link>
+                                <div className="relative" ref={dropdownRef}>
                                 <button
                                     onClick={() => setDropdownOpen(!dropdownOpen)}
                                     className="inline-flex items-center gap-1.5 px-4 py-2 text-sm font-medium text-indigo-600 border border-indigo-200 rounded-full hover:bg-indigo-50 transition-colors"
@@ -119,6 +205,7 @@ export default function HomePage() {
                                         </button>
                                     </div>
                                 )}
+                                </div>
                             </div>
                         ) : (
                             <div className="flex items-center gap-2">
@@ -281,16 +368,35 @@ export default function HomePage() {
                                             <span className="text-2xl font-bold text-indigo-600">
                                                 ${Number(product.price).toFixed(2)}
                                             </span>
-                                            <button
-                                                type="button"
-                                                onClick={() => handleCheckout(product)}
-                                                className="mt-3 w-full py-2.5 bg-gradient-to-r from-indigo-600 to-purple-600 text-white text-sm font-semibold rounded-xl hover:from-indigo-700 hover:to-purple-700 transition-all shadow-sm hover:shadow-md flex items-center justify-center gap-2"
-                                            >
-                                                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 11V7a4 4 0 00-8 0v4M5 9h14l1 12H4L5 9z" />
-                                                </svg>
-                                                Buy Now
-                                            </button>
+                                            <div className="mt-3 flex gap-2">
+                                                <button
+                                                    type="button"
+                                                    onClick={() => handleAddToCart(product)}
+                                                    disabled={addingToCart === product.id}
+                                                    className="flex-1 py-2.5 border-2 border-indigo-600 text-indigo-600 text-sm font-semibold rounded-xl hover:bg-indigo-50 transition-all flex items-center justify-center gap-1.5 disabled:opacity-50"
+                                                >
+                                                    {addingToCart === product.id ? (
+                                                        <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-indigo-600"></div>
+                                                    ) : (
+                                                        <>
+                                                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 100 4 2 2 0 000-4z" />
+                                                            </svg>
+                                                            Add to Cart
+                                                        </>
+                                                    )}
+                                                </button>
+                                                <button
+                                                    type="button"
+                                                    onClick={() => handleCheckout(product)}
+                                                    className="flex-1 py-2.5 bg-gradient-to-r from-indigo-600 to-purple-600 text-white text-sm font-semibold rounded-xl hover:from-indigo-700 hover:to-purple-700 transition-all shadow-sm hover:shadow-md flex items-center justify-center gap-1.5"
+                                                >
+                                                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 11V7a4 4 0 00-8 0v4M5 9h14l1 12H4L5 9z" />
+                                                    </svg>
+                                                    Buy Now
+                                                </button>
+                                            </div>
                                         </div>
                                     </div>
                                 </div>
@@ -299,6 +405,127 @@ export default function HomePage() {
                     </div>
                 )}
             </div>
+
+            {cartModal && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm" onClick={(e) => { if (e.target === e.currentTarget) setCartModal(null); }}>
+                    <div ref={modalRef} className="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden">
+                        <div className="p-6">
+                            <div className="flex items-center justify-between mb-5">
+                                <h3 className="text-lg font-bold text-gray-900">Add to Cart</h3>
+                                <button onClick={() => setCartModal(null)} className="text-gray-400 hover:text-gray-600 p-1">
+                                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                                    </svg>
+                                </button>
+                            </div>
+
+                            <div className="flex gap-4 mb-5">
+                                {getImageUrl(cartModal) ? (
+                                    <img src={getImageUrl(cartModal)} alt={cartModal.title} className="w-20 h-20 object-cover rounded-xl border border-gray-200" />
+                                ) : (
+                                    <div className="w-20 h-20 bg-gray-100 rounded-xl flex items-center justify-center">
+                                        <svg className="w-8 h-8 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                                        </svg>
+                                    </div>
+                                )}
+                                <div>
+                                    <h4 className="font-semibold text-gray-900">{cartModal.title}</h4>
+                                    <p className="text-lg font-bold text-indigo-600 mt-1">${Number(cartModal.price).toFixed(2)}</p>
+                                </div>
+                            </div>
+
+                            {cartModal.colors?.length > 0 && (
+                                <div className="mb-4">
+                                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                                        Color <span className="text-red-500">*</span>
+                                    </label>
+                                    <div className="flex flex-wrap gap-2">
+                                        {cartModal.colors.map((color) => (
+                                            <button
+                                                key={color}
+                                                type="button"
+                                                onClick={() => setModalColor(color)}
+                                                className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm font-medium border-2 transition-all ${
+                                                    modalColor === color
+                                                        ? 'border-indigo-500 bg-indigo-50 text-indigo-700'
+                                                        : 'border-gray-200 bg-white text-gray-700 hover:border-gray-300'
+                                                }`}
+                                            >
+                                                <span className="w-3.5 h-3.5 rounded-full border border-gray-300" style={{ backgroundColor: color.toLowerCase() }} />
+                                                {color}
+                                            </button>
+                                        ))}
+                                    </div>
+                                </div>
+                            )}
+
+                            {cartModal.sizes?.length > 0 && (
+                                <div className="mb-4">
+                                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                                        Size <span className="text-red-500">*</span>
+                                    </label>
+                                    <div className="flex flex-wrap gap-2">
+                                        {cartModal.sizes.map((size) => (
+                                            <button
+                                                key={size}
+                                                type="button"
+                                                onClick={() => setModalSize(size)}
+                                                className={`px-4 py-2 rounded-lg text-sm font-medium border-2 transition-all ${
+                                                    modalSize === size
+                                                        ? 'border-indigo-500 bg-indigo-50 text-indigo-700'
+                                                        : 'border-gray-200 bg-white text-gray-700 hover:border-gray-300'
+                                                }`}
+                                            >
+                                                {size}
+                                            </button>
+                                        ))}
+                                    </div>
+                                </div>
+                            )}
+
+                            <div className="mb-5">
+                                <label className="block text-sm font-medium text-gray-700 mb-2">Quantity</label>
+                                <div className="flex items-center gap-3">
+                                    <button
+                                        onClick={() => setModalQty(Math.max(1, modalQty - 1))}
+                                        className="w-9 h-9 rounded-lg bg-gray-100 hover:bg-gray-200 flex items-center justify-center text-gray-600 transition"
+                                    >
+                                        −
+                                    </button>
+                                    <span className="w-8 text-center font-semibold">{modalQty}</span>
+                                    <button
+                                        onClick={() => setModalQty(Math.min(100, modalQty + 1))}
+                                        className="w-9 h-9 rounded-lg bg-gray-100 hover:bg-gray-200 flex items-center justify-center text-gray-600 transition"
+                                    >
+                                        +
+                                    </button>
+                                </div>
+                            </div>
+
+                            <button
+                                onClick={handleModalConfirm}
+                                disabled={addingToCart === cartModal.id}
+                                className="w-full py-3 bg-gradient-to-r from-indigo-600 to-purple-600 text-white font-semibold rounded-xl hover:from-indigo-700 hover:to-purple-700 transition-all shadow-sm hover:shadow-md flex items-center justify-center gap-2 disabled:opacity-50"
+                            >
+                                {addingToCart === cartModal.id ? (
+                                    <>
+                                        <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+                                        Adding...
+                                    </>
+                                ) : (
+                                    <>
+                                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 100 4 2 2 0 000-4z" />
+                                        </svg>
+                                        Add to Cart &mdash; ${(Number(cartModal.price) * modalQty).toFixed(2)}
+                                    </>
+                                )}
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
 
             <footer className="bg-white border-t mt-12">
                 <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
