@@ -20,8 +20,7 @@ class OrderController extends Controller
             return $this->error('Failed to retrieve orders.', 500);
         }
     }
-
-    public function myOrders(Request $request)
+public function myOrders(Request $request)
     {
         try {
             $orders = Order::with('items.product')
@@ -32,8 +31,7 @@ class OrderController extends Controller
             return $this->success($orders, 'Orders retrieved successfully.');
         } catch (\Throwable $e) {
             return $this->error('Failed to retrieve orders.', 500);
-        }
-    }
+        }}
 
     public function show($id)
     {
@@ -46,7 +44,6 @@ class OrderController extends Controller
             return $this->error('Failed to retrieve order.', 500);
         }
     }
-
     public function updateStatus($id, Request $request)
     {
         $request->validate([
