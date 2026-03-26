@@ -75,8 +75,10 @@ class ProductController extends Controller
                 'Product created successfully.',
                 201
             );
+            
         } catch (\Throwable $e) {
-            Log::error('Product creation failed: ' . $e->getMessage());
+            Log::error('Product creation failed: ' . $e->getMessage())
+            ;
             return $this->error('Failed to create product: ' . $e->getMessage(), 500);
         }
     }
@@ -92,6 +94,7 @@ class ProductController extends Controller
             return $this->error('Failed to retrieve product.', 500);
         }
     }
+
 
     public function update(Request $request, $id)
     {

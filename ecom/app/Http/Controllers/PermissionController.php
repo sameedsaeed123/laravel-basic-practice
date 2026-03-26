@@ -23,7 +23,7 @@ class PermissionController extends Controller
 
     public function store(Request $request)
     {
-        $request->validate([
+$request->validate([
             'name' => 'required|string|max:255|unique:permissions,name',
         ]);
 
