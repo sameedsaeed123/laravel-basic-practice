@@ -16,61 +16,10 @@ export default function Dashboard() {
 
     useEffect(() => {
         const fetchStats = async () => {
-            const results = {};
-            const fetches = [];
-
-            if (hasPermission('view-categories') || hasPermission('manage-categories')) {
-                fetches.push(
-                    api.get('/categories')
-                        .then(res => { results.categories = res.data.data.length; })
-                        .catch(() => {})
-                );
-            }
-            if (hasPermission('view-sub-categories') || hasPermission('manage-sub-categories')) {
-                fetches.push(
-                    api.get('/sub-categories')
-                        .then(res => { results.subCategories = res.data.data.length; })
-                        .catch(() => {})
-                );
-            }
-            if (hasPermission('view-products') || hasPermission('create-products') || hasPermission('edit-products') || hasPermission('delete-products')) {
-                fetches.push(
-                    api.get('/products')
-                        .then(res => { results.products = res.data.data.length; })
-                        .catch(() => {})
-                );
-            }
-            if (hasPermission('view-orders') || hasPermission('manage-orders')) {
-                fetches.push(
-                    api.get('/orders')
-                        .then(res => { results.orders = res.data.data.length; })
-                        .catch(() => {})
-                );
-            }
-            if (hasPermission('manage-coupons')) {
-                fetches.push(
-                    api.get('/coupons')
-                        .then(res => { results.coupons = res.data.data.length; })
-                        .catch(() => {})
-                );
-            }
-            if (hasPermission('manage-users')) {
-                fetches.push(
-                    api.get('/users')
-                        .then(res => { results.users = res.data.data.length; })
-                        .catch(() => {})
-                );
-            }
-            if (hasPermission('manage-roles')) {
-                fetches.push(
-                    api.get('/roles')
-                        .then(res => { results.roles = res.data.data.length; })
-                        .catch(() => {})
-                );
-            }
-
-            await Promise.all(fetches);
-            setStats(prev => ({ ...prev, ...results }));
+            try {
+                const res = await api.get('/dashboard/stats');
+                setStats(prev => ({ ...prev, ...(res.data.data || {}) }));
+            } catch (e) {}
         };
 
         fetchStats();

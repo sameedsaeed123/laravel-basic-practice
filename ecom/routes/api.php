@@ -5,6 +5,7 @@ use App\Http\Controllers\CartController;
 use App\Http\Controllers\CategoryController;
 use App\Http\Controllers\ColorController;
 use App\Http\Controllers\CouponController;
+use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\OrderController;
 use App\Http\Controllers\PermissionController;
 use App\Http\Controllers\ProductController;
@@ -46,6 +47,8 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('/orders/my', [OrderController::class, 'myOrders']);
 });
 Route::middleware(['auth:sanctum', 'admin'])->group(function () {
+
+    Route::get('/dashboard/stats', [DashboardController::class, 'stats']);
 
     Route::middleware('permission:view-categories')->group(function () {
         Route::get('/categories', [CategoryController::class, 'index']);
